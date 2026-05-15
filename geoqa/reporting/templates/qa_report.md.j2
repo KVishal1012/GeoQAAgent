@@ -1,0 +1,41 @@
+# GeoQA Report
+
+## Run Summary
+
+- Run ID: `{{ result.run_record.run_id }}`
+- Status: `{{ result.run_record.status }}`
+- Input: `{{ result.run_record.input_path }}`
+- Features: `{{ result.run_record.feature_count }}`
+- CRS: `{{ result.run_record.crs or "missing" }}`
+- Geometry types: `{{ result.run_record.geometry_types | join(", ") if result.run_record.geometry_types else "unknown" }}`
+- Readiness score: `{{ result.summary.readiness.score }}`
+- Readiness band: `{{ result.summary.readiness.band }}`
+
+## Issue Counts
+
+- High: `{{ result.issue_counts.high }}`
+- Medium: `{{ result.issue_counts.medium }}`
+- Low: `{{ result.issue_counts.low }}`
+- Total: `{{ result.issue_counts.total }}`
+
+## Normalization Notes
+
+{% for note in result.run_record.normalization_notes %}
+- {{ note }}
+{% else %}
+- No normalization notes recorded.
+{% endfor %}
+
+## Top Issues
+
+{% for issue in result.issues[:20] %}
+- `[{{ issue.severity }}]` `{{ issue.issue_code }}`{% if issue.feature_id is not none %} feature `{{ issue.feature_id }}`{% endif %}: {{ issue.message }}
+{% else %}
+- No issues detected.
+{% endfor %}
+
+## Artifacts
+
+{% for key, value in result.artifact_paths.items() %}
+- {{ key }}: `{{ value }}`
+{% endfor %}
