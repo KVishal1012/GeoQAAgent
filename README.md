@@ -2,9 +2,37 @@
 
 GeoQA Agent validates geospatial files, normalizes their geometry and CRS, runs deterministic QA checks, assigns severity, computes a readiness score, and writes a report plus issue CSV.
 
-## Project infographic
+## Project flowchart
 
-![GeoQA Agent infographic](assets/geoqa-project-infographic.svg)
+```mermaid
+flowchart LR
+    A["Input Files<br/>GeoJSON / GPKG / ZIP Shapefile"]
+    B["Validate Input<br/>path, type, size"]
+    C["Load Dataset<br/>GeoPandas GeoDataFrame"]
+    D["Normalize Data<br/>CRS, geometry, precision"]
+    E["Run QA Checks"]
+    E1["CRS"]
+    E2["Geometry"]
+    E3["Schema"]
+    E4["SQL Server<br/>(optional)"]
+    E5["Linear Reference<br/>(optional)"]
+    F["Apply Severity"]
+    G["Compute Readiness Score"]
+    H["Generate Outputs<br/>report, CSV, JSON"]
+
+    A --> B --> C --> D --> E
+    E --> E1
+    E --> E2
+    E --> E3
+    E --> E4
+    E --> E5
+    E1 --> F
+    E2 --> F
+    E3 --> F
+    E4 --> F
+    E5 --> F
+    F --> G --> H
+```
 
 ## Architecture at a glance
 
