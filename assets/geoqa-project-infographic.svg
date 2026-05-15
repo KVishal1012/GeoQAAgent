@@ -1,0 +1,154 @@
+<svg width="1600" height="1180" viewBox="0 0 1600 1180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">GeoQA Agent project infographic</title>
+  <desc id="desc">Architecture infographic showing GeoQA Agent input formats, processing pipeline, quality checks, scoring, and generated artifacts.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="1180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FBFF"/>
+      <stop offset="1" stop-color="#EEF6ED"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1180" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B3954"/>
+      <stop offset="1" stop-color="#087E8B"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F8FBFD"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#0B3954" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1 1L11 6L1 11V1Z" fill="#2A4D69"/>
+    </marker>
+    <style>
+      .title { font: 700 44px 'Segoe UI', Arial, sans-serif; fill: #FFFFFF; }
+      .subtitle { font: 400 21px 'Segoe UI', Arial, sans-serif; fill: #DCEFF3; }
+      .section { font: 700 24px 'Segoe UI', Arial, sans-serif; fill: #0B3954; }
+      .card-title { font: 700 22px 'Segoe UI', Arial, sans-serif; fill: #0B3954; }
+      .card-subtitle { font: 600 15px 'Segoe UI', Arial, sans-serif; fill: #087E8B; letter-spacing: 0.08em; text-transform: uppercase; }
+      .body { font: 400 18px 'Segoe UI', Arial, sans-serif; fill: #17324D; }
+      .small { font: 400 15px 'Segoe UI', Arial, sans-serif; fill: #355166; }
+      .mono { font: 600 16px 'Courier New', monospace; fill: #0B3954; }
+      .pill { font: 600 16px 'Segoe UI', Arial, sans-serif; fill: #0B3954; }
+      .tiny { font: 600 14px 'Segoe UI', Arial, sans-serif; fill: #516879; letter-spacing: 0.08em; text-transform: uppercase; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1180" fill="url(#bg)"/>
+  <circle cx="1410" cy="120" r="180" fill="#D7F0E5"/>
+  <circle cx="1450" cy="1030" r="220" fill="#E0F1FA"/>
+  <circle cx="120" cy="1000" r="180" fill="#FCE9D7"/>
+
+  <rect x="60" y="50" width="1480" height="160" rx="32" fill="url(#hero)" filter="url(#shadow)"/>
+  <text x="100" y="118" class="title">GeoQA Agent</text>
+  <text x="100" y="160" class="subtitle">Deterministic geospatial quality assurance pipeline for dataset validation, normalization, issue scoring, and report generation.</text>
+
+  <rect x="100" y="190" width="160" height="40" rx="20" fill="#F2C14E"/>
+  <text x="132" y="216" class="pill">Python CLI</text>
+  <rect x="280" y="190" width="215" height="40" rx="20" fill="#BEE3DB"/>
+  <text x="312" y="216" class="pill">GeoPandas + Shapely</text>
+  <rect x="515" y="190" width="160" height="40" rx="20" fill="#D7EAF8"/>
+  <text x="548" y="216" class="pill">Jinja2 Reports</text>
+  <rect x="695" y="190" width="220" height="40" rx="20" fill="#F8E8C8"/>
+  <text x="725" y="216" class="pill">QA Scores + CSV Findings</text>
+
+  <text x="80" y="280" class="section">How a run moves through the system</text>
+
+  <rect x="80" y="320" width="300" height="230" rx="26" fill="url(#card)" stroke="#CFE0EA" filter="url(#shadow)"/>
+  <text x="110" y="364" class="card-subtitle">1. Inputs</text>
+  <text x="110" y="402" class="card-title">Accepted geospatial files</text>
+  <text x="110" y="444" class="body">.geojson</text>
+  <text x="110" y="476" class="body">.gpkg</text>
+  <text x="110" y="508" class="body">zipped shapefile</text>
+  <text x="110" y="540" class="small">Validated for existence, extension, size, and shapefile completeness before loading.</text>
+
+  <rect x="450" y="320" width="300" height="230" rx="26" fill="url(#card)" stroke="#CFE0EA" filter="url(#shadow)"/>
+  <text x="480" y="364" class="card-subtitle">2. Entry Point</text>
+  <text x="480" y="402" class="card-title">CLI and runner orchestration</text>
+  <text x="480" y="438" class="mono">python app.py data.geojson</text>
+  <text x="480" y="470" class="mono">--required-column asset_id</text>
+  <text x="480" y="502" class="mono">--target-crs EPSG:4326</text>
+  <text x="480" y="534" class="small">`app.py` parses flags and hands off to `geoqa.runner.run_geoqa(...)`.</text>
+
+  <rect x="820" y="320" width="300" height="230" rx="26" fill="url(#card)" stroke="#CFE0EA" filter="url(#shadow)"/>
+  <text x="850" y="364" class="card-subtitle">3. Ingestion</text>
+  <text x="850" y="402" class="card-title">Load into a GeoDataFrame</text>
+  <text x="850" y="444" class="body">Reads data through GeoPandas</text>
+  <text x="850" y="476" class="body">Extracts feature count, CRS, columns</text>
+  <text x="850" y="508" class="body">Auto-creates `feature_id` if missing</text>
+  <text x="850" y="540" class="small">This stage creates the normalized in-memory structure used by every later check.</text>
+
+  <rect x="1190" y="320" width="330" height="230" rx="26" fill="url(#card)" stroke="#CFE0EA" filter="url(#shadow)"/>
+  <text x="1220" y="364" class="card-subtitle">4. Normalization</text>
+  <text x="1220" y="402" class="card-title">Prepare data for consistent QA</text>
+  <text x="1220" y="444" class="body">CRS normalization and optional reprojection</text>
+  <text x="1220" y="476" class="body">Geometry repair for invalid shapes</text>
+  <text x="1220" y="508" class="body">Optional precision snapping grid</text>
+  <text x="1220" y="540" class="small">Normalization notes are stored in the run record for traceability.</text>
+
+  <line x1="380" y1="435" x2="450" y2="435" stroke="#2A4D69" stroke-width="5" marker-end="url(#arrow)"/>
+  <line x1="750" y1="435" x2="820" y2="435" stroke="#2A4D69" stroke-width="5" marker-end="url(#arrow)"/>
+  <line x1="1120" y1="435" x2="1190" y2="435" stroke="#2A4D69" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <text x="80" y="630" class="section">Deterministic QA engine</text>
+
+  <rect x="80" y="670" width="250" height="250" rx="26" fill="#FFFFFF" stroke="#D6E4EC" filter="url(#shadow)"/>
+  <text x="108" y="712" class="card-subtitle">Check Family</text>
+  <text x="108" y="748" class="card-title">CRS checks</text>
+  <text x="108" y="788" class="body">Missing CRS</text>
+  <text x="108" y="820" class="body">Out-of-range coordinates</text>
+  <text x="108" y="860" class="small">Protects against undefined reference systems and implausible lon/lat extents.</text>
+
+  <rect x="360" y="670" width="250" height="250" rx="26" fill="#FFFFFF" stroke="#D6E4EC" filter="url(#shadow)"/>
+  <text x="388" y="712" class="card-subtitle">Check Family</text>
+  <text x="388" y="748" class="card-title">Geometry checks</text>
+  <text x="388" y="788" class="body">Null or empty geometry</text>
+  <text x="388" y="820" class="body">Invalid geometry</text>
+  <text x="388" y="852" class="body">Duplicate geometry</text>
+  <text x="388" y="884" class="body">Mixed types, overlaps, size anomalies</text>
+
+  <rect x="640" y="670" width="250" height="250" rx="26" fill="#FFFFFF" stroke="#D6E4EC" filter="url(#shadow)"/>
+  <text x="668" y="712" class="card-subtitle">Check Family</text>
+  <text x="668" y="748" class="card-title">Schema checks</text>
+  <text x="668" y="788" class="body">Missing required columns</text>
+  <text x="668" y="820" class="body">Non-string or long column names</text>
+  <text x="668" y="852" class="body">Null-heavy fields</text>
+  <text x="668" y="884" class="body">Duplicate feature IDs</text>
+
+  <rect x="920" y="670" width="250" height="250" rx="26" fill="#FFFFFF" stroke="#D6E4EC" filter="url(#shadow)"/>
+  <text x="948" y="712" class="card-subtitle">Optional</text>
+  <text x="948" y="748" class="card-title">SQL Server checks</text>
+  <text x="948" y="788" class="body">Column-name compatibility</text>
+  <text x="948" y="820" class="body">Missing SRID warning</text>
+  <text x="948" y="860" class="small">Helps spot downstream loading issues before spatial data hits SQL Server.</text>
+
+  <rect x="1200" y="670" width="320" height="250" rx="26" fill="#FFFFFF" stroke="#D6E4EC" filter="url(#shadow)"/>
+  <text x="1228" y="712" class="card-subtitle">Optional</text>
+  <text x="1228" y="748" class="card-title">Linear reference checks</text>
+  <text x="1228" y="788" class="body">Looks for `route_id`, `from_measure`, `to_measure`</text>
+  <text x="1228" y="820" class="body">Flags missing measures</text>
+  <text x="1228" y="852" class="body">Flags reversed measure ranges</text>
+  <text x="1228" y="892" class="small">Only runs when the expected linear referencing columns are present.</text>
+
+  <rect x="80" y="970" width="980" height="160" rx="28" fill="#0B3954" filter="url(#shadow)"/>
+  <text x="112" y="1014" class="card-subtitle" fill="#BEE3DB">Severity and scoring</text>
+  <text x="112" y="1052" class="title" style="font-size:30px">Issue codes become actionable findings</text>
+  <text x="112" y="1092" class="subtitle" style="font-size:20px">Each issue is mapped to a severity level and suggested fix. The readiness score starts at 100 and subtracts weighted penalties: low = 2, medium = 7, high = 15.</text>
+
+  <rect x="1110" y="970" width="410" height="160" rx="28" fill="#FFFFFF" stroke="#D6E4EC" filter="url(#shadow)"/>
+  <text x="1140" y="1014" class="card-subtitle">Outputs</text>
+  <text x="1140" y="1050" class="card-title">Artifacts written per run</text>
+  <text x="1140" y="1084" class="body">qa_report.md</text>
+  <text x="1320" y="1084" class="body">issues.csv</text>
+  <text x="1140" y="1114" class="body">run_record.json</text>
+  <text x="1320" y="1114" class="body">summary.json</text>
+
+  <path d="M1360 606C1360 606 1360 640 1360 670" stroke="#2A4D69" stroke-width="5" stroke-dasharray="10 12" marker-end="url(#arrow)"/>
+  <path d="M1030 930C1030 930 1030 950 1030 970" stroke="#2A4D69" stroke-width="5" stroke-dasharray="10 12" marker-end="url(#arrow)"/>
+  <path d="M1260 930C1260 930 1260 950 1260 970" stroke="#2A4D69" stroke-width="5" stroke-dasharray="10 12" marker-end="url(#arrow)"/>
+
+  <text x="1210" y="602" class="tiny">Normalization feeds all checks</text>
+  <text x="930" y="950" class="tiny">Findings feed readiness scoring</text>
+  <text x="1185" y="950" class="tiny">Results are serialized to reports</text>
+  <text x="80" y="1158" class="small">Key code paths: app.py, geoqa/runner.py, geoqa/checks/*, geoqa/normalization/*, geoqa/reporting/report_generator.py</text>
+</svg>
