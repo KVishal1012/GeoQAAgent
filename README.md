@@ -2,6 +2,31 @@
 
 GeoQA Agent validates geospatial files, normalizes their geometry and CRS, runs deterministic QA checks, assigns severity, computes a readiness score, and writes a report plus issue CSV.
 
+## Why GeoQA Agent?
+
+GIS and infrastructure teams often discover data quality problems too late: during database loading, dashboard development, spatial joins, or model execution.
+
+GeoQA Agent runs deterministic spatial QA checks before downstream use.
+
+It helps identify:
+
+- missing or inconsistent CRS/SRID
+- invalid, null, or empty geometries
+- duplicate geometries
+- mixed geometry types
+- polygon overlaps
+- schema issues
+- SQL Server compatibility risks
+- linear referencing issues
+
+The output is an evidence-backed QA package:
+
+- Markdown report
+- issue CSV
+- run summary
+- run record
+- append-only run log
+
 ## Project flowchart
 
 ```mermaid
@@ -61,6 +86,29 @@ Artifacts are written to `outputs/<run_id>/`:
 - `issues.csv`
 - `run_record.json`
 - `summary.json`
+
+## Demo case study
+
+V0.1.1 includes a small Centreline Intersections demo package that shows GeoQA on a realistic geospatial QA workflow.
+
+- Demo input: [centreline_intersections_sample.zip](demo/input/centreline_intersections_sample.zip)
+- Sample report: [qa_report.md](demo/output/qa_report.md)
+- Sample issues: [issues.csv](demo/output/issues.csv)
+- Demo notes and Loom script: [demo_notes.md](demo/demo_notes.md)
+
+Run the demo:
+
+```bash
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output
+```
+
+The committed sample output shows a `needs_review` result for a 50-feature Centreline sample. GeoQA flags duplicate point geometries and null-heavy elevation fields, then turns those findings into a readiness score, suggested fixes, and shareable report artifacts.
+
+Screenshots:
+
+- [Report preview](demo/screenshots/report_preview.png)
+- [Issues CSV preview](demo/screenshots/issues_csv_preview.png)
+- [Terminal run](demo/screenshots/terminal_run.png)
 
 ## Checks in v1
 

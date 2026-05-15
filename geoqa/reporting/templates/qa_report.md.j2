@@ -1,22 +1,35 @@
-# GeoQA Report
+# GeoQA Spatial Readiness Report
 
-## Run Summary
+## Executive Summary
 
-- Run ID: `{{ result.run_record.run_id }}`
+{% set duplicate_geometry_count = result.issues | selectattr("issue_code", "equalto", "DUPLICATE_GEOMETRY") | list | length %}
+GeoQA inspected `{{ result.run_record.filename }}`, containing {{ result.run_record.feature_count }} features with {{ result.run_record.geometry_types | join(", ") if result.run_record.geometry_types else "unknown" }} geometry in {{ result.run_record.crs or "a missing CRS" }}.
+
+The dataset is classified as `{{ result.summary.readiness.band }}` with a readiness score of `{{ result.summary.readiness.score }}/100`.
+
+{% if result.summary.readiness.band == "ready" %}
+No QA findings were detected by the configured checks. The dataset is ready for downstream use based on the current GeoQA rules.
+{% elif result.issue_counts.high > 0 %}
+The most important finding is the presence of high-severity issues. These should be resolved before using the data in database loading, dashboard development, spatial joins, model execution, or downstream reporting.
+{% elif duplicate_geometry_count > 0 %}
+The most important finding is {% if duplicate_geometry_count == 1 %}a duplicate geometry record{% else %}a high number of duplicate geometry records{% endif %}. This may be valid for intersection datasets in some workflows, but it should be reviewed before using the data in spatial joins, network analysis, SQL Server loading, or downstream reporting.
+{% elif result.issue_counts.medium > 0 %}
+The most important finding is the presence of medium-severity issues. These may be valid in some workflows, but they should be reviewed before using the data in spatial joins, network analysis, SQL Server loading, or downstream reporting.
+{% else %}
+The most important finding is a small set of low-severity completeness or cleanup issues. These should be reviewed before final handoff.
+{% endif %}
+
 - Status: `{{ result.run_record.status }}`
-- Input: `{{ result.run_record.input_path }}`
-- Features: `{{ result.run_record.feature_count }}`
-- CRS: `{{ result.run_record.crs or "missing" }}`
-- Geometry types: `{{ result.run_record.geometry_types | join(", ") if result.run_record.geometry_types else "unknown" }}`
-- Readiness score: `{{ result.summary.readiness.score }}`
-- Readiness band: `{{ result.summary.readiness.band }}`
+- Run ID: `{{ result.run_record.run_id }}`
 
 ## Issue Counts
 
-- High: `{{ result.issue_counts.high }}`
-- Medium: `{{ result.issue_counts.medium }}`
-- Low: `{{ result.issue_counts.low }}`
-- Total: `{{ result.issue_counts.total }}`
+| Severity | Count | Meaning |
+| --- | ---: | --- |
+| High | `{{ result.issue_counts.high }}` | Blocks reliable use until fixed |
+| Medium | `{{ result.issue_counts.medium }}` | Needs review before handoff |
+| Low | `{{ result.issue_counts.low }}` | Cleanup or completeness concern |
+| Total | `{{ result.issue_counts.total }}` | All detected findings |
 
 ## Normalization Notes
 
@@ -30,9 +43,17 @@
 
 {% for issue in result.issues[:20] %}
 - `[{{ issue.severity }}]` `{{ issue.issue_code }}`{% if issue.feature_id is not none %} feature `{{ issue.feature_id }}`{% endif %}: {{ issue.message }}
+  Suggested fix: {{ issue.suggested_fix or "Review and remediate this finding." }}
 {% else %}
 - No issues detected.
 {% endfor %}
+
+## Business Value
+
+- Converts geospatial QA from manual inspection into a repeatable run.
+- Produces a readiness score that can be shared with data owners and downstream teams.
+- Preserves feature-level IDs when available, making findings easier to trace back to source records.
+- Writes machine-readable artifacts for audit, triage, and follow-up workflows.
 
 ## Artifacts
 

@@ -1,0 +1,5 @@
+issue_code,check_name,severity,feature_id,message,suggested_fix,context
+DUPLICATE_GEOMETRY,duplicate_geometry,medium,12,Feature duplicates geometry of feature 11.,Deduplicate repeated spatial features.,{}
+NULL_HEAVY_COLUMN,column_completeness,low,,Column 'ELEVATI12' is 98% null.,Review whether sparse fields should be populated or removed.,"{""column"": ""ELEVATI12"", ""null_ratio"": 0.98}"
+NULL_HEAVY_COLUMN,column_completeness,low,,Column 'ELEVATI13' is 100% null.,Review whether sparse fields should be populated or removed.,"{""column"": ""ELEVATI13"", ""null_ratio"": 1.0}"
+NULL_HEAVY_COLUMN,column_completeness,low,,Column 'HEIGHT_15' is 100% null.,Review whether sparse fields should be populated or removed.,"{""column"": ""HEIGHT_15"", ""null_ratio"": 1.0}"

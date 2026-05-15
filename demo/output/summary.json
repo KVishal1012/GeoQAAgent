@@ -1,0 +1,42 @@
+{
+  "dataset": {
+    "filename": "centreline_intersections_sample.zip",
+    "feature_count": 50,
+    "geometry_types": [
+      "MultiPoint"
+    ],
+    "crs": "EPSG:4326",
+    "columns": [
+      "_id1",
+      "INTERSE2",
+      "DATE_EF3",
+      "DATE_EX4",
+      "ELEVATI5",
+      "INTERSE6",
+      "CLASSIF7",
+      "CLASSIF8",
+      "NUMBER_9",
+      "ELEVATI10",
+      "ELEVATI11",
+      "ELEVATI12",
+      "ELEVATI13",
+      "ELEVATI14",
+      "HEIGHT_15",
+      "HEIGHT_16",
+      "STATE17",
+      "TRANS_I18",
+      "TRANS_I19",
+      "OBJECTI20",
+      "geometry"
+    ]
+  },
+  "readiness": {
+    "score": 87,
+    "band": "needs_review",
+    "penalties": {
+      "low": 3,
+      "medium": 1,
+      "high": 0
+    }
+  }
+}

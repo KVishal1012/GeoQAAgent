@@ -1,0 +1,36 @@
+{
+  "run_id": "demo-centreline-v011",
+  "input_path": "demo/input/centreline_intersections_sample.zip",
+  "started_at": "2026-05-15T00:00:00+00:00",
+  "finished_at": "2026-05-15T00:00:01+00:00",
+  "duration_seconds": 1.0,
+  "status": "completed",
+  "filename": "centreline_intersections_sample.zip",
+  "feature_count": 50,
+  "geometry_types": [
+    "MultiPoint"
+  ],
+  "crs": "EPSG:4326",
+  "enabled_checks": [
+    "crs_checks",
+    "geometry_checks",
+    "schema_checks",
+    "sqlserver_checks",
+    "linear_reference_checks"
+  ],
+  "normalization_notes": [
+    "Feature IDs copied from source column '_id1'.",
+    "CRS retained as EPSG:4326.",
+    "No geometry normalization changes were required.",
+    "Precision normalization skipped."
+  ],
+  "readiness_score": 87,
+  "readiness_band": "needs_review",
+  "issue_counts": {
+    "low": 3,
+    "medium": 1,
+    "high": 0,
+    "total": 4
+  },
+  "error": null
+}
