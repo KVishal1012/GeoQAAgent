@@ -110,6 +110,35 @@ Screenshots:
 - [Issues CSV preview](demo/screenshots/issues_csv_preview.png)
 - [Terminal run](demo/screenshots/terminal_run.png)
 
+## Agent-assisted reports in V0.2
+
+V0.2 adds an optional evidence-backed AI report layer on top of the deterministic QA engine. The deterministic artifacts remain the source of truth, and the agent draft must be grounded in:
+
+- `summary.json`
+- `issues.csv`
+- `run_record.json`
+- retrieved fix playbook text
+
+Generate an agent-assisted draft:
+
+```bash
+OPENAI_API_KEY=... GEOQA_LLM_MODEL=... python app.py demo/input/centreline_intersections_sample.zip --output-dir outputs --agent-report
+```
+
+Approve a passing draft during the same run:
+
+```bash
+OPENAI_API_KEY=... GEOQA_LLM_MODEL=... python app.py demo/input/centreline_intersections_sample.zip --output-dir outputs --agent-report --approve-agent-report --reviewer-name "QA Reviewer"
+```
+
+Agent report artifacts include `agent_report_draft.md`, `agent_report.json`, `report_consistency.json`, `hallucination_check.json`, `review_status.json`, and `agent_report.md` only after human approval.
+
+Run the minimal Streamlit UI:
+
+```bash
+streamlit run streamlit_app.py
+```
+
 ## Checks in v1
 
 - CRS presence and coordinate plausibility

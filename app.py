@@ -5,6 +5,9 @@ import json
 import sys
 
 from geoqa.ingestion.validators import ValidationError
+from geoqa.llm.gateway import LLMGatewayError
+from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts
+from geoqa.review.human_review import ReviewError
 from geoqa.runner import run_geoqa
 
 
@@ -36,12 +39,33 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable linear reference checks.",
     )
+    parser.add_argument(
+        "--agent-report",
+        action="store_true",
+        help="Generate an evidence-backed LLM draft report after deterministic QA artifacts are written.",
+    )
+    parser.add_argument("--llm-model", default=None, help="Optional LLM model override for agent reports.")
+    parser.add_argument(
+        "--approve-agent-report",
+        action="store_true",
+        help="Approve the generated agent report when consistency checks pass.",
+    )
+    parser.add_argument("--reviewer-name", default=None, help="Reviewer name required for agent report approval.")
+    parser.add_argument(
+        "--playbook-dir",
+        default=None,
+        help="Optional directory containing fix playbooks for agent report retrieval.",
+    )
     return parser
 
 
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    if args.approve_agent_report and not args.agent_report:
+        parser.error("--approve-agent-report requires --agent-report")
+    if args.approve_agent_report and not args.reviewer_name:
+        parser.error("--reviewer-name is required with --approve-agent-report")
     try:
         result = run_geoqa(
             input_path=args.input_path,
@@ -52,8 +76,20 @@ def main() -> None:
             enable_sqlserver_checks=not args.skip_sqlserver_checks,
             enable_linear_reference_checks=not args.skip_linear_reference_checks,
         )
+        if args.agent_report:
+            agent_artifacts = generate_agent_report_artifacts(
+                result,
+                model=args.llm_model,
+                playbook_dir=args.playbook_dir,
+                approve=args.approve_agent_report,
+                reviewer_name=args.reviewer_name,
+            )
+            result.artifact_paths.update(agent_artifacts)
     except ValidationError as exc:
         print(f"Validation error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except (LLMGatewayError, ReviewError) as exc:
+        print(f"Agent report error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     print(json.dumps(result.to_dict(), indent=2))
 
