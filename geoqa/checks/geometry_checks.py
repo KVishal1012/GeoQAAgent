@@ -3,6 +3,7 @@ from __future__ import annotations
 from itertools import combinations
 
 import geopandas as gpd
+import pandas as pd
 
 from geoqa.models import Issue
 
@@ -25,7 +26,7 @@ def run_geometry_checks(gdf: gpd.GeoDataFrame, feature_id_column: str = "feature
     for index, row in gdf.iterrows():
         geometry = row.geometry
         feature_id = row.get(feature_id_column, index)
-        if geometry is None:
+        if geometry is None or pd.isna(geometry):
             issues.append(
                 Issue(
                     issue_code="NULL_GEOMETRY",
