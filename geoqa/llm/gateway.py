@@ -80,6 +80,26 @@ class StaticLLMGateway:
         )
 
 
+class StaticFileLLMGateway:
+    """File-backed static gateway for demos and copy-paste CLI usage."""
+
+    provider = "static"
+
+    def __init__(self, report_path: str, model: str = "static-file-model") -> None:
+        self.report_path = report_path
+        self.model = model
+
+    def generate(self, prompt: str, model: str | None = None) -> LLMResponse:
+        with open(self.report_path, encoding="utf-8") as handle:
+            text = handle.read()
+        return LLMResponse(
+            text=text,
+            model=model or self.model,
+            provider=self.provider,
+            raw={"prompt_length": len(prompt), "report_path": self.report_path},
+        )
+
+
 def _extract_response_text(response: Any) -> str:
     chunks: list[str] = []
     for item in getattr(response, "output", []) or []:
@@ -88,4 +108,3 @@ def _extract_response_text(response: Any) -> str:
             if text:
                 chunks.append(str(text))
     return "\n".join(chunks).strip()
-

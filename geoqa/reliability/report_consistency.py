@@ -57,7 +57,7 @@ def check_report_consistency(
         checked_claims.append({"type": "readiness_band", "values": sorted(report_bands)})
 
     known_issue_codes = {str(issue.get("issue_code")) for issue in issues if issue.get("issue_code")}
-    report_issue_codes = set(re.findall(r"\b[A-Z][A-Z0-9]+_[A-Z0-9_]+\b", report_text))
+    report_issue_codes = _extract_report_issue_codes(report_text)
     for issue_code in sorted(report_issue_codes - known_issue_codes):
         errors.append(f"Issue code '{issue_code}' is not present in issues.csv.")
     if report_issue_codes:
@@ -144,3 +144,12 @@ def _mentions_positive_severity(text: str, severity: str) -> bool:
         return True
     return False
 
+
+def _extract_report_issue_codes(report_text: str) -> set[str]:
+    candidates: set[str] = set()
+    for match in re.finditer(r"`([A-Z][A-Z0-9]+_[A-Z0-9_]+)`", report_text):
+        token = match.group(1)
+        suffix = token.split("_", 1)[1]
+        if any(character.isalpha() for character in suffix):
+            candidates.add(token)
+    return candidates

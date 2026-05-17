@@ -77,10 +77,23 @@ def test_report_consistency_blocks_invented_severity():
 def test_report_consistency_blocks_invented_issue_code():
     summary, issues, run_record = _evidence()
 
-    result = check_report_consistency("The report found FAKE_ISSUE.", summary, issues, run_record)
+    result = check_report_consistency("The report found `FAKE_ISSUE`.", summary, issues, run_record)
 
     assert not result.passed
     assert "Issue code 'FAKE_ISSUE' is not present in issues.csv." in result.blocking_errors
+
+
+def test_report_consistency_allows_uppercase_field_names():
+    summary, issues, run_record = _evidence()
+    report = (
+        "The dataset is classified as `needs_review`. "
+        "`DUPLICATE_GEOMETRY` was detected, and `HEIGHT_15` remains null-heavy."
+    )
+
+    result = check_report_consistency(report, summary, issues, run_record)
+
+    assert result.passed
+    assert result.blocking_errors == []
 
 
 def test_report_consistency_blocks_check_not_run():
@@ -90,4 +103,3 @@ def test_report_consistency_blocks_check_not_run():
 
     assert not result.passed
     assert any("sql server" in error for error in result.blocking_errors)
-

@@ -119,17 +119,13 @@ V0.2 adds an optional evidence-backed AI report layer on top of the deterministi
 - `run_record.json`
 - retrieved fix playbook text
 
-Generate an agent-assisted draft:
+Copy-paste demo command:
 
 ```bash
-OPENAI_API_KEY=... GEOQA_LLM_MODEL=... python app.py demo/input/centreline_intersections_sample.zip --output-dir outputs --agent-report
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-report --llm-provider static --static-report-file demo/output/agent_report_draft.md --approve-agent-report --reviewer-name "Demo Reviewer"
 ```
 
-Approve a passing draft during the same run:
-
-```bash
-OPENAI_API_KEY=... GEOQA_LLM_MODEL=... python app.py demo/input/centreline_intersections_sample.zip --output-dir outputs --agent-report --approve-agent-report --reviewer-name "QA Reviewer"
-```
+This path uses the bundled static gateway, so it works without an API key. Live OpenAI-backed generation is also supported by setting `OPENAI_API_KEY` and `GEOQA_LLM_MODEL` and using `--llm-provider openai`.
 
 Agent report artifacts include `agent_report_draft.md`, `agent_report.json`, `report_consistency.json`, `hallucination_check.json`, `review_status.json`, and `agent_report.md` only after human approval.
 

@@ -5,7 +5,7 @@ import json
 import sys
 
 from geoqa.ingestion.validators import ValidationError
-from geoqa.llm.gateway import LLMGatewayError
+from geoqa.llm.gateway import LLMGatewayError, OpenAILLMGateway, StaticFileLLMGateway
 from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts
 from geoqa.review.human_review import ReviewError
 from geoqa.runner import run_geoqa
@@ -44,6 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Generate an evidence-backed LLM draft report after deterministic QA artifacts are written.",
     )
+    parser.add_argument(
+        "--llm-provider",
+        default="openai",
+        choices=["openai", "static"],
+        help="LLM provider for agent reports. Use 'static' for the no-API-key demo path.",
+    )
     parser.add_argument("--llm-model", default=None, help="Optional LLM model override for agent reports.")
     parser.add_argument(
         "--approve-agent-report",
@@ -56,16 +62,27 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional directory containing fix playbooks for agent report retrieval.",
     )
+    parser.add_argument(
+        "--static-report-file",
+        default=None,
+        help="Static agent report markdown used when --llm-provider static is selected.",
+    )
     return parser
+
+
+def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if args.approve_agent_report and not args.agent_report:
+        parser.error("--approve-agent-report requires --agent-report")
+    if args.approve_agent_report and not args.reviewer_name:
+        parser.error("--reviewer-name is required with --approve-agent-report")
+    if args.llm_provider == "static" and args.agent_report and not args.static_report_file:
+        parser.error("--static-report-file is required with --llm-provider static")
 
 
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    if args.approve_agent_report and not args.agent_report:
-        parser.error("--approve-agent-report requires --agent-report")
-    if args.approve_agent_report and not args.reviewer_name:
-        parser.error("--reviewer-name is required with --approve-agent-report")
+    validate_args(args, parser)
     try:
         result = run_geoqa(
             input_path=args.input_path,
@@ -77,8 +94,14 @@ def main() -> None:
             enable_linear_reference_checks=not args.skip_linear_reference_checks,
         )
         if args.agent_report:
+            gateway = None
+            if args.llm_provider == "static":
+                gateway = StaticFileLLMGateway(args.static_report_file)
+            elif args.llm_provider == "openai":
+                gateway = OpenAILLMGateway(default_model=args.llm_model)
             agent_artifacts = generate_agent_report_artifacts(
                 result,
+                gateway=gateway,
                 model=args.llm_model,
                 playbook_dir=args.playbook_dir,
                 approve=args.approve_agent_report,
