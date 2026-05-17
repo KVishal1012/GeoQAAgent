@@ -89,7 +89,7 @@ Artifacts are written to `outputs/<run_id>/`:
 
 ## Demo case study
 
-V0.1.1 includes a small Centreline Intersections demo package that shows GeoQA on a realistic geospatial QA workflow.
+The repo includes a small Centreline Intersections demo package that shows GeoQA on a realistic geospatial QA workflow.
 
 - Demo input: [centreline_intersections_sample.zip](demo/input/centreline_intersections_sample.zip)
 - Sample report: [qa_report.md](demo/output/qa_report.md)
@@ -104,22 +104,35 @@ python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/o
 
 The committed sample output shows a `needs_review` result for a 50-feature Centreline sample. GeoQA flags duplicate point geometries and null-heavy elevation fields, then turns those findings into a readiness score, suggested fixes, and shareable report artifacts.
 
-Screenshots:
-
-- [Report preview](demo/screenshots/report_preview.png)
-- [Issues CSV preview](demo/screenshots/issues_csv_preview.png)
-- [Terminal run](demo/screenshots/terminal_run.png)
-
 ## Agent-assisted reports in V0.2
 
-V0.2 adds an optional evidence-backed AI report layer on top of the deterministic QA engine. The deterministic artifacts remain the source of truth, and the agent draft must be grounded in:
+V0.2 adds an optional evidence-backed AI report layer on top of the deterministic QA engine.
+
+The deterministic QA artifacts remain the source of truth. Every LLM-generated sentence must be grounded in:
 
 - `summary.json`
 - `issues.csv`
 - `run_record.json`
 - retrieved fix playbook text
 
-Copy-paste demo command:
+See the release summary: [docs/v0.2_release_notes.md](docs/v0.2_release_notes.md)
+
+### What V0.2 adds
+
+- OpenAI-first LLM gateway
+- Fake/static gateway for tests and offline demos
+- Prompt registry
+- Local RAG fix playbooks
+- Agent report draft generation
+- Report consistency validation
+- Hallucination monitoring
+- Human review and approval workflow
+- Final AI report generation only after approval
+- Minimal Streamlit interface
+
+### V0.2 demo command
+
+Copy and run:
 
 ```bash
 python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-report --llm-provider static --static-report-file demo/output/agent_report_draft.md --approve-agent-report --reviewer-name "Demo Reviewer"
@@ -127,7 +140,33 @@ python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/o
 
 This path uses the bundled static gateway, so it works without an API key. Live OpenAI-backed generation is also supported by setting `OPENAI_API_KEY` and `GEOQA_LLM_MODEL` and using `--llm-provider openai`.
 
-Agent report artifacts include `agent_report_draft.md`, `agent_report.json`, `report_consistency.json`, `hallucination_check.json`, `review_status.json`, and `agent_report.md` only after human approval.
+### V0.2 artifacts
+
+- Deterministic report: [demo/output/qa_report.md](demo/output/qa_report.md)
+- Deterministic issues: [demo/output/issues.csv](demo/output/issues.csv)
+- AI draft: [demo/output/agent_report_draft.md](demo/output/agent_report_draft.md)
+- AI final report: [demo/output/agent_report.md](demo/output/agent_report.md)
+- Consistency check: [demo/output/report_consistency.json](demo/output/report_consistency.json)
+- Hallucination monitor: [demo/output/hallucination_check.json](demo/output/hallucination_check.json)
+- Review status: [demo/output/review_status.json](demo/output/review_status.json)
+
+### GitHub preview
+
+Deterministic report preview:
+
+![GeoQA deterministic report preview](demo/screenshots/report_preview.png)
+
+Issues CSV preview:
+
+![GeoQA issues CSV preview](demo/screenshots/issues_csv_preview.png)
+
+Terminal run preview:
+
+![GeoQA terminal run preview](demo/screenshots/terminal_run.png)
+
+### Product claim
+
+GeoQA produces evidence-backed AI reports, not free-form AI summaries.
 
 Run the minimal Streamlit UI:
 
