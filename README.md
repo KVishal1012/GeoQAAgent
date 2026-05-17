@@ -140,6 +140,24 @@ python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/o
 
 This path uses the bundled static gateway, so it works without an API key. Live OpenAI-backed generation is also supported by setting `OPENAI_API_KEY` and `GEOQA_LLM_MODEL` and using `--llm-provider openai`.
 
+The agent layer supports:
+
+- prompt selection with `--agent-prompt`
+- review states in `review_status.json`: `draft_ready`, `blocked`, `rejected`, `approved`
+- later review of an existing run with `--review-output-dir`
+
+Approve an existing draft without regenerating it:
+
+```bash
+python app.py --review-output-dir demo/output --approve-agent-report --reviewer-name "Demo Reviewer" --review-notes "Approved after review"
+```
+
+Reject an existing draft:
+
+```bash
+python app.py --review-output-dir demo/output --reject-agent-report --reviewer-name "Demo Reviewer" --review-notes "Needs revision before approval"
+```
+
 ### V0.2 artifacts
 
 - Deterministic report: [demo/output/qa_report.md](demo/output/qa_report.md)
@@ -173,6 +191,8 @@ Run the minimal Streamlit UI:
 ```bash
 streamlit run streamlit_app.py
 ```
+
+The Streamlit app supports deterministic QA runs, static demo-mode draft generation, consistency and hallucination inspection, review actions, and artifact downloads in one page.
 
 ## Checks in v1
 

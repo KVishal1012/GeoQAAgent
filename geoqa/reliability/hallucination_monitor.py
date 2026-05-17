@@ -26,8 +26,10 @@ def monitor_report_grounding(
     playbooks: list[dict[str, Any]] | None = None,
 ) -> HallucinationCheckResult:
     consistency = check_report_consistency(report_text, summary, issues, run_record)
+    blocking_errors = list(consistency.blocking_errors)
     warnings = list(consistency.warnings)
     checked_claims = list(consistency.checked_claims)
+    issue_codes = {str(issue.get("issue_code", "")) for issue in issues if issue.get("issue_code")}
 
     evidence_terms = _build_evidence_terms(summary, issues, run_record, playbooks or [])
     for sentence in _split_sentences(report_text):
@@ -37,10 +39,13 @@ def monitor_report_grounding(
         checked_claims.append({"type": "sentence_grounding", "sentence": sentence, "grounded_terms": grounded_terms[:8]})
         if _looks_like_claim(sentence) and not grounded_terms:
             warnings.append(f"Sentence has no obvious evidence term: {sentence}")
+        workflow_error = _unsupported_workflow_claim(sentence, issue_codes)
+        if workflow_error:
+            blocking_errors.append(workflow_error)
 
     return HallucinationCheckResult(
-        passed=consistency.passed,
-        blocking_errors=list(consistency.blocking_errors),
+        passed=not blocking_errors,
+        blocking_errors=blocking_errors,
         warnings=warnings,
         checked_claims=checked_claims,
     )
@@ -97,3 +102,27 @@ def _looks_like_claim(sentence: str) -> bool:
         )
     )
 
+
+def _unsupported_workflow_claim(sentence: str, issue_codes: set[str]) -> str | None:
+    lowered = sentence.lower()
+    if "if this dataset is intended for" in lowered:
+        return None
+
+    risky_claims = {
+        "safe for routing": "routing safety",
+        "suitable for routing": "routing suitability",
+        "ready for routing": "routing readiness",
+        "ready for sql server": "SQL Server readiness",
+        "safe for sql server": "SQL Server safety",
+        "suitable for sql server": "SQL Server suitability",
+        "ready for network analysis": "network analysis readiness",
+        "safe for network analysis": "network analysis safety",
+        "suitable for network analysis": "network analysis suitability",
+    }
+    for phrase, label in risky_claims.items():
+        if phrase in lowered:
+            return f"Unsupported workflow claim about {label}: {sentence}"
+
+    if "sql server" in lowered and "compatible" in lowered and "SQLSERVER_INCOMPATIBLE_COLUMN_NAME" in issue_codes:
+        return f"Report claims SQL Server compatibility despite SQL Server findings: {sentence}"
+    return None

@@ -11,7 +11,7 @@ from geoqa.models import QAResult
 from geoqa.rag.retriever import RetrievedPlaybook, render_playbooks, retrieve_playbooks
 from geoqa.reliability.hallucination_monitor import monitor_report_grounding
 from geoqa.reliability.report_consistency import check_report_consistency
-from geoqa.review.human_review import ReviewStatus, approve_agent_report, write_review_status
+from geoqa.review.human_review import ReviewStatus, read_review_status, review_agent_report, write_review_status
 
 
 def generate_agent_report_artifacts(
@@ -22,6 +22,7 @@ def generate_agent_report_artifacts(
     prompt_name: str = "technical_report_v1",
     approve: bool = False,
     reviewer_name: str | None = None,
+    review_notes: str | None = None,
 ) -> dict[str, str]:
     output_dir = Path(qa_result.artifact_paths["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -38,23 +39,6 @@ def generate_agent_report_artifacts(
 
     draft_path.write_text(llm_response.text, encoding="utf-8")
     playbook_payload = [playbook.to_dict() for playbook in playbooks]
-    agent_json_path.write_text(
-        json.dumps(
-            {
-                "provider": llm_response.provider,
-                "model": llm_response.model,
-                "prompt_name": prompt_name,
-                "grounding_sources": ["summary.json", "issues.csv", "run_record.json"]
-                + [playbook.source for playbook in playbooks],
-                "playbooks": playbook_payload,
-                "report_text": llm_response.text,
-                "raw": llm_response.raw,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-
     consistency = check_report_consistency(
         llm_response.text,
         evidence["summary"],
@@ -80,6 +64,26 @@ def generate_agent_report_artifacts(
     )
     write_review_status(output_dir, review)
 
+    agent_json_path.write_text(
+        json.dumps(
+            {
+                "provider": llm_response.provider,
+                "model": llm_response.model,
+                "prompt_name": prompt_name,
+                "grounding_sources": ["summary.json", "issues.csv", "run_record.json"]
+                + [playbook.source for playbook in playbooks],
+                "playbooks": playbook_payload,
+                "report_text": llm_response.text,
+                "raw": llm_response.raw,
+                "consistency": consistency.to_dict(),
+                "hallucination": hallucination.to_dict(),
+                "review_status": review.to_dict(),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
     artifacts = {
         "agent_report_draft": str(draft_path),
         "agent_report_json": str(agent_json_path),
@@ -88,7 +92,13 @@ def generate_agent_report_artifacts(
         "review_status": str(output_dir / "review_status.json"),
     }
     if approve:
-        approved = approve_agent_report(output_dir, reviewer_name or "")
+        approved = review_agent_report(
+            output_dir,
+            action="approve",
+            reviewer_name=reviewer_name or "",
+            notes=review_notes,
+        )
+        _update_agent_json_review_status(output_dir, approved)
         artifacts["agent_report"] = str(approved.final_path)
     return artifacts
 
@@ -126,9 +136,34 @@ def load_evidence_bundle(output_dir: str | Path) -> dict[str, Any]:
     return {"summary": summary, "issues": issues, "run_record": run_record}
 
 
-def approve_existing_agent_report(output_dir: str | Path, reviewer_name: str, notes: str | None = None) -> dict[str, str]:
-    status = approve_agent_report(output_dir, reviewer_name=reviewer_name, notes=notes)
-    return {"agent_report": str(status.final_path), "review_status": str(Path(output_dir) / "review_status.json")}
+def review_existing_agent_report(
+    output_dir: str | Path,
+    action: str,
+    reviewer_name: str,
+    notes: str | None = None,
+) -> dict[str, str | None]:
+    status = review_agent_report(output_dir, action=action, reviewer_name=reviewer_name, notes=notes)
+    _update_agent_json_review_status(output_dir, status)
+    return {
+        "agent_report": str(status.final_path) if status.final_path else None,
+        "review_status": str(Path(output_dir) / "review_status.json"),
+    }
+
+
+def read_agent_review_status(output_dir: str | Path) -> dict[str, Any] | None:
+    status = read_review_status(output_dir)
+    if status is None:
+        return None
+    return status.to_dict()
+
+
+def _update_agent_json_review_status(output_dir: str | Path, status: ReviewStatus) -> None:
+    agent_json_path = Path(output_dir) / "agent_report.json"
+    if not agent_json_path.exists():
+        return
+    payload = json.loads(agent_json_path.read_text(encoding="utf-8"))
+    payload["review_status"] = status.to_dict()
+    agent_json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -146,4 +181,3 @@ def _read_issues(path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError:
                 row["context"] = context
     return rows
-

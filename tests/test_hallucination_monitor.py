@@ -30,3 +30,22 @@ def test_hallucination_monitor_allows_cautious_conditional_language():
     assert result.passed
     assert result.blocking_errors == []
 
+
+def test_hallucination_monitor_blocks_unsupported_workflow_claim():
+    summary = {"dataset": {"feature_count": 50, "crs": "EPSG:4326"}, "readiness": {"band": "needs_review", "score": 87}}
+    issues = [{"issue_code": "DUPLICATE_GEOMETRY", "check_name": "duplicate_geometry", "severity": "medium"}]
+    run_record = {
+        "enabled_checks": ["geometry_checks"],
+        "issue_counts": {"low": 0, "medium": 1, "high": 0},
+        "readiness_band": "needs_review",
+    }
+
+    result = monitor_report_grounding(
+        "The dataset is safe for routing and ready for network analysis.",
+        summary,
+        issues,
+        run_record,
+    )
+
+    assert not result.passed
+    assert any("routing safety" in error or "network analysis readiness" in error for error in result.blocking_errors)

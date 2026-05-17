@@ -8,6 +8,7 @@ def _evidence():
             "feature_count": 50,
             "geometry_types": ["MultiPoint"],
             "crs": "EPSG:4326",
+            "columns": ["HEIGHT_15", "OBJECTID"],
         },
         "readiness": {"score": 87, "band": "needs_review", "penalties": {"low": 3, "medium": 1, "high": 0}},
     }
@@ -19,6 +20,7 @@ def _evidence():
             "feature_id": "12",
             "message": "Feature duplicates geometry of feature 11.",
             "suggested_fix": "Deduplicate repeated spatial features.",
+            "context": {"column": "HEIGHT_15"},
         }
     ]
     run_record = {
@@ -103,3 +105,40 @@ def test_report_consistency_blocks_check_not_run():
 
     assert not result.passed
     assert any("sql server" in error for error in result.blocking_errors)
+
+
+def test_report_consistency_blocks_unknown_feature_id():
+    summary, issues, run_record = _evidence()
+
+    result = check_report_consistency("The duplicate geometry affects feature `99`.", summary, issues, run_record)
+
+    assert not result.passed
+    assert "Feature ID '99' is not present in issues.csv." in result.blocking_errors
+
+
+def test_report_consistency_blocks_unknown_column():
+    summary, issues, run_record = _evidence()
+
+    result = check_report_consistency("`FAKE_COLUMN` remains null-heavy.", summary, issues, run_record)
+
+    assert not result.passed
+    assert "Column 'FAKE_COLUMN' is not present in summary.json or issues.csv." in result.blocking_errors
+
+
+def test_report_consistency_blocks_mismatched_issue_count():
+    summary, issues, run_record = _evidence()
+
+    result = check_report_consistency("The report found 2 `DUPLICATE_GEOMETRY` findings.", summary, issues, run_record)
+
+    assert not result.passed
+    assert "Report says there are 2 DUPLICATE_GEOMETRY findings, but issues.csv has 1." in result.blocking_errors
+
+
+def test_report_consistency_blocks_false_no_high_severity_claim():
+    summary, issues, run_record = _evidence()
+    run_record["issue_counts"]["high"] = 1
+
+    result = check_report_consistency("No high-severity issues were detected.", summary, issues, run_record)
+
+    assert not result.passed
+    assert any("no high-severity findings" in error for error in result.blocking_errors)

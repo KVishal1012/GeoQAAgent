@@ -5,6 +5,9 @@ from zipfile import ZipFile
 import geopandas as gpd
 from shapely.geometry import Point
 
+from geoqa.llm.gateway import StaticLLMGateway
+from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts
+from geoqa.review.human_review import ReviewError, read_review_status
 from geoqa.runner import run_geoqa
 
 
@@ -155,3 +158,85 @@ def test_uat_detected_source_ids_are_used_in_findings(tmp_path):
     duplicate_issue = next(issue for issue in result.issues if issue.issue_code == "DUPLICATE_GEOMETRY")
     assert duplicate_issue.feature_id == 102
     assert "Feature IDs copied from source column 'OBJECTID'." in result.run_record.normalization_notes
+
+
+def test_uat_static_gateway_full_review_flow(tmp_path):
+    input_path = tmp_path / "clean.geojson"
+    output_root = tmp_path / "outputs"
+    _write_geojson(
+        input_path,
+        [
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-1", "name": "First"},
+                "geometry": {"type": "Point", "coordinates": [-79.38, 43.65]},
+            },
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-2", "name": "Second"},
+                "geometry": {"type": "Point", "coordinates": [-79.39, 43.66]},
+            },
+        ],
+    )
+    result = run_geoqa(
+        input_path=str(input_path),
+        output_root=str(output_root),
+        required_columns=["asset_id"],
+    )
+    report_text = (
+        "GeoQA inspected clean.geojson, containing 2 features with Point geometry in EPSG:4326. "
+        "The dataset is classified as `ready` with a readiness score of 100/100. "
+        "No QA findings were detected by the configured checks."
+    )
+
+    artifacts = generate_agent_report_artifacts(
+        result,
+        gateway=StaticLLMGateway(report_text),
+        approve=True,
+        reviewer_name="QA Reviewer",
+        review_notes="UAT approval",
+    )
+
+    assert Path(artifacts["agent_report_draft"]).exists()
+    assert Path(artifacts["agent_report"]).exists()
+    review_status = read_review_status(result.artifact_paths["output_dir"])
+    assert review_status is not None
+    assert review_status.status == "approved"
+
+
+def test_uat_blocked_agent_report_stays_unapproved(tmp_path):
+    input_path = tmp_path / "clean.geojson"
+    output_root = tmp_path / "outputs"
+    _write_geojson(
+        input_path,
+        [
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-1", "name": "First"},
+                "geometry": {"type": "Point", "coordinates": [-79.38, 43.65]},
+            }
+        ],
+    )
+    result = run_geoqa(
+        input_path=str(input_path),
+        output_root=str(output_root),
+        required_columns=["asset_id"],
+    )
+    report_text = "The dataset contains 999 features and is safe for routing."
+
+    try:
+        generate_agent_report_artifacts(
+            result,
+            gateway=StaticLLMGateway(report_text),
+            approve=True,
+            reviewer_name="QA Reviewer",
+        )
+    except ReviewError:
+        pass
+    else:
+        raise AssertionError("Expected ReviewError for blocked agent report")
+
+    review_status = read_review_status(result.artifact_paths["output_dir"])
+    assert review_status is not None
+    assert review_status.status == "blocked"
+    assert not Path(result.artifact_paths["output_dir"], "agent_report.md").exists()
