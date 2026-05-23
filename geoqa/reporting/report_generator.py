@@ -7,6 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from geoqa.models import QAResult
+from geoqa.workflows.run_index import append_run_index
 
 
 def generate_artifacts(
@@ -40,6 +41,7 @@ def generate_artifacts(
 
     report_path = Path(artifacts["report"])
     report_path.write_text(_render_report(qa_result, template_dir), encoding="utf-8")
+    append_run_index(qa_result, output_root)
 
     return artifacts
 

@@ -7,8 +7,9 @@ from shapely.geometry import Point
 
 from geoqa.llm.gateway import StaticLLMGateway
 from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts
-from geoqa.review.human_review import ReviewError, read_review_status
+from geoqa.review.human_review import ReviewError, read_review_history, read_review_status
 from geoqa.runner import run_geoqa
+from geoqa.workflows import compare_run_outputs, export_handoff_bundle, generate_fix_plan_artifacts
 
 
 def _write_geojson(path: Path, features: list[dict]) -> None:
@@ -239,4 +240,67 @@ def test_uat_blocked_agent_report_stays_unapproved(tmp_path):
     review_status = read_review_status(result.artifact_paths["output_dir"])
     assert review_status is not None
     assert review_status.status == "blocked"
+    history = read_review_history(result.artifact_paths["output_dir"])
+    assert history[-1]["action"] == "blocked"
     assert not Path(result.artifact_paths["output_dir"], "agent_report.md").exists()
+
+
+
+def test_uat_full_analyst_workflow(tmp_path):
+    base_input = tmp_path / "base.geojson"
+    target_input = tmp_path / "target.geojson"
+    _write_geojson(
+        base_input,
+        [
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-1"},
+                "geometry": None,
+            }
+        ],
+    )
+    _write_geojson(
+        target_input,
+        [
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-1"},
+                "geometry": {"type": "Point", "coordinates": [-79.38, 43.65]},
+            },
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-2"},
+                "geometry": {"type": "Point", "coordinates": [-79.38, 43.65]},
+            },
+        ],
+    )
+
+    base_result = run_geoqa(
+        input_path=str(base_input),
+        output_root=str(tmp_path / "outputs"),
+        required_columns=["asset_id"],
+    )
+    target_result = run_geoqa(
+        input_path=str(target_input),
+        output_root=str(tmp_path / "outputs"),
+        required_columns=["asset_id"],
+    )
+    report_text = (
+        "GeoQA inspected target.geojson, containing 2 features with Point geometry in EPSG:4326. "
+        "The dataset is classified as `ready` with a readiness score of 93/100. "
+        "The `DUPLICATE_GEOMETRY` finding should be reviewed before downstream use."
+    )
+    generate_agent_report_artifacts(
+        target_result,
+        gateway=StaticLLMGateway(report_text),
+        approve=True,
+        reviewer_name="QA Reviewer",
+        review_notes="Approved for handoff",
+    )
+    fix_plan = generate_fix_plan_artifacts(target_result.artifact_paths["output_dir"])
+    comparison = compare_run_outputs(base_result.artifact_paths["output_dir"], target_result.artifact_paths["output_dir"])
+    bundle = export_handoff_bundle(target_result.artifact_paths["output_dir"])
+
+    assert Path(fix_plan["fix_plan_markdown"]).exists()
+    assert Path(comparison["comparison_report"]).exists()
+    assert Path(bundle["handoff_bundle"]).exists()
