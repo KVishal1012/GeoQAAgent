@@ -4,14 +4,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-from geoqa.rag.retriever import render_playbooks, retrieve_playbooks
+from geoqa.rag.retriever import retrieve_playbooks
 from geoqa.reporting.agent_report_generator import load_evidence_bundle
 
 
-def generate_fix_plan_artifacts(run_output_dir: str | Path) -> dict[str, str]:
+def generate_fix_plan_artifacts(
+    run_output_dir: str | Path,
+    playbook_dir: str | Path | None = None,
+) -> dict[str, str]:
     output_path = Path(run_output_dir)
     evidence = load_evidence_bundle(output_path)
-    playbooks = retrieve_playbooks(evidence["issues"])
+    playbooks = retrieve_playbooks(evidence["issues"], playbook_dir=playbook_dir)
     plan = build_fix_plan(evidence, [playbook.to_dict() for playbook in playbooks])
     markdown = render_fix_plan_markdown(plan)
 
@@ -85,33 +88,28 @@ def build_fix_plan(evidence: dict[str, Any], playbooks: list[dict[str, Any]]) ->
 def render_fix_plan_markdown(plan: dict[str, Any]) -> str:
     dataset = plan.get("dataset", {})
     lines = [
-        "# GeoQA Fix Plan",
+        "# GeoQA Remediation Plan",
         "",
         f"Dataset: `{dataset.get('filename', 'dataset')}`",
-        "",
-        f"Prompt template surfaced for this workflow: `{plan.get('prompt_template_name')}`",
         "",
     ]
     for group in plan.get("issue_groups", []):
         lines.extend(
             [
-                f"## `{group['issue_code']}`",
+                f"## `{group['issue_code'].replace('_', ' ').title()}`",
                 "",
-                f"- Severity: `{group['severity']}`",
-                f"- Count: `{group['count']}`",
-                f"- Suggested action: {group['suggested_fix']}",
+                f"- Priority: `{str(group['severity']).title()}`",
+                f"- Affected records: `{group['count']}`",
+                f"- Recommended action: {group['suggested_fix']}",
             ]
         )
         if group["feature_ids"]:
-            lines.append(f"- Affected feature IDs: {', '.join(f'`{value}`' for value in group['feature_ids'])}")
+            lines.append(f"- Affected record IDs: {', '.join(f'`{value}`' for value in group['feature_ids'])}")
         if group["columns"]:
-            lines.append(f"- Affected columns: {', '.join(f'`{value}`' for value in group['columns'])}")
+            lines.append(f"- Affected data fields: {', '.join(f'`{value}`' for value in group['columns'])}")
         if group["messages"]:
             lines.append(f"- Example finding: {group['messages'][0]}")
         if group["playbooks"]:
-            lines.append(
-                "- Relevant playbooks: "
-                + ", ".join(f"`{playbook['title']}`" for playbook in group["playbooks"])
-            )
+            lines.append("- Related guidance: " + ", ".join(f"`{playbook['title']}`" for playbook in group["playbooks"]))
         lines.append("")
     return "\n".join(lines)

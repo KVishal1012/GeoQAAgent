@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .pytest_cache/
+.env
 outputs/
 demo/output/run_log.jsonl
 demo/output/geoqa-*/

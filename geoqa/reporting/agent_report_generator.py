@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ def generate_agent_report_artifacts(
     approve: bool = False,
     reviewer_name: str | None = None,
     review_notes: str | None = None,
+    runtime_config: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     output_dir = Path(qa_result.artifact_paths["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -70,8 +72,10 @@ def generate_agent_report_artifacts(
                 "provider": llm_response.provider,
                 "model": llm_response.model,
                 "prompt_name": prompt_name,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "grounding_sources": ["summary.json", "issues.csv", "run_record.json"]
                 + [playbook.source for playbook in playbooks],
+                "runtime_config": runtime_config or {},
                 "playbooks": playbook_payload,
                 "report_text": llm_response.text,
                 "raw": llm_response.raw,
@@ -90,6 +94,7 @@ def generate_agent_report_artifacts(
         "report_consistency": str(consistency_path),
         "hallucination_check": str(hallucination_path),
         "review_status": str(output_dir / "review_status.json"),
+        "review_history": str(output_dir / "review_history.jsonl"),
     }
     if approve:
         approved = review_agent_report(
@@ -142,11 +147,13 @@ def review_existing_agent_report(
     reviewer_name: str,
     notes: str | None = None,
 ) -> dict[str, str | None]:
+    output_path = Path(output_dir)
     status = review_agent_report(output_dir, action=action, reviewer_name=reviewer_name, notes=notes)
     _update_agent_json_review_status(output_dir, status)
     return {
         "agent_report": str(status.final_path) if status.final_path else None,
-        "review_status": str(Path(output_dir) / "review_status.json"),
+        "review_status": str(output_path / "review_status.json"),
+        "review_history": str(output_path / "review_history.jsonl"),
     }
 
 

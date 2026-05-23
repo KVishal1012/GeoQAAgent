@@ -245,7 +245,6 @@ def test_uat_blocked_agent_report_stays_unapproved(tmp_path):
     assert not Path(result.artifact_paths["output_dir"], "agent_report.md").exists()
 
 
-
 def test_uat_full_analyst_workflow(tmp_path):
     base_input = tmp_path / "base.geojson"
     target_input = tmp_path / "target.geojson"
@@ -299,7 +298,10 @@ def test_uat_full_analyst_workflow(tmp_path):
     )
     fix_plan = generate_fix_plan_artifacts(target_result.artifact_paths["output_dir"])
     comparison = compare_run_outputs(base_result.artifact_paths["output_dir"], target_result.artifact_paths["output_dir"])
-    bundle = export_handoff_bundle(target_result.artifact_paths["output_dir"])
+    bundle = export_handoff_bundle(
+        target_result.artifact_paths["output_dir"],
+        comparison_key=comparison["comparison_key"],
+    )
 
     assert Path(fix_plan["fix_plan_markdown"]).exists()
     assert Path(comparison["comparison_report"]).exists()

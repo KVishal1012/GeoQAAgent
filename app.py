@@ -10,7 +10,7 @@ from geoqa.llm.gateway import LLMGatewayError, StaticFileLLMGateway, build_opena
 from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts, review_existing_agent_report
 from geoqa.review.human_review import ReviewError
 from geoqa.runner import run_geoqa
-from geoqa.workflows import compare_run_outputs, export_handoff_bundle, generate_fix_plan_artifacts
+from geoqa.workflows import HandoffBundleError, compare_run_outputs, export_handoff_bundle, generate_fix_plan_artifacts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -101,9 +101,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Export a handoff bundle for an existing run output directory.",
     )
     parser.add_argument(
+        "--comparison-key",
+        default=None,
+        help="Optional comparison key to include when exporting a handoff bundle.",
+    )
+    parser.add_argument(
         "--playbook-dir",
         default=None,
-        help="Optional directory containing fix playbooks for agent report retrieval.",
+        help="Optional directory containing fix playbooks for agent report retrieval and fix plans.",
     )
     parser.add_argument(
         "--static-report-file",
@@ -145,6 +150,8 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         parser.error("input_path cannot be combined with --review-output-dir workflow actions")
     if comparison_requested and args.input_path:
         parser.error("input_path cannot be combined with run comparison")
+    if args.comparison_key and not args.export_handoff_bundle:
+        parser.error("--comparison-key is only valid with --export-handoff-bundle")
     if not args.review_output_dir and not args.input_path and not args.diagnose_config and not comparison_requested:
         parser.error("input_path is required unless --review-output-dir or run comparison is used")
 
@@ -162,7 +169,7 @@ def main() -> None:
             return
 
         if args.review_output_dir:
-            workflow_result: dict[str, str | None] = {}
+            workflow_result: dict[str, str | bool | None] = {}
             if args.approve_agent_report or args.reject_agent_report:
                 action = "approve" if args.approve_agent_report else "reject"
                 workflow_result.update(
@@ -174,9 +181,16 @@ def main() -> None:
                     )
                 )
             if args.generate_fix_plan:
-                workflow_result.update(generate_fix_plan_artifacts(args.review_output_dir))
+                workflow_result.update(
+                    generate_fix_plan_artifacts(args.review_output_dir, playbook_dir=args.playbook_dir)
+                )
             if args.export_handoff_bundle:
-                workflow_result.update(export_handoff_bundle(args.review_output_dir))
+                workflow_result.update(
+                    export_handoff_bundle(
+                        args.review_output_dir,
+                        comparison_key=args.comparison_key,
+                    )
+                )
             print(json.dumps(workflow_result, indent=2))
             return
 
@@ -235,7 +249,7 @@ def main() -> None:
     except ConfigError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-    except (LLMGatewayError, ReviewError) as exc:
+    except (LLMGatewayError, ReviewError, HandoffBundleError) as exc:
         print(f"Agent report error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
     print(json.dumps(result.to_dict(), indent=2))

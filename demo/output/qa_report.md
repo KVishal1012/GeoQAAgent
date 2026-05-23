@@ -9,11 +9,11 @@ The dataset is classified as `needs_review` with a readiness score of `87/100`.
 The most important finding is a duplicate geometry record. This may be valid for intersection datasets in some workflows, but it should be reviewed before using the data in spatial joins, network analysis, SQL Server loading, or downstream reporting.
 
 - Status: `completed`
-- Run ID: `demo-centreline-v011`
+- Assessment ID: `demo-centreline-v011`
 
-## Issue Counts
+## Finding Summary
 
-| Severity | Count | Meaning |
+| Priority | Count | Meaning |
 | --- | ---: | --- |
 | High | `0` | Blocks reliable use until fixed |
 | Medium | `1` | Needs review before handoff |
@@ -27,15 +27,15 @@ The most important finding is a duplicate geometry record. This may be valid for
 - No geometry normalization changes were required.
 - Precision normalization skipped.
 
-## Top Issues
+## Top Findings
 
-- `[medium]` `DUPLICATE_GEOMETRY` feature `12`: Feature duplicates geometry of feature 11.
+- `[medium]` `Duplicate Geometry` record `12`: Feature duplicates geometry of record 11.
   Suggested fix: Deduplicate repeated spatial features.
-- `[low]` `NULL_HEAVY_COLUMN`: Column 'ELEVATI12' is 98% null.
+- `[low]` `Null Heavy Column`: Column 'ELEVATI12' is 98% null.
   Suggested fix: Review whether sparse fields should be populated or removed.
-- `[low]` `NULL_HEAVY_COLUMN`: Column 'ELEVATI13' is 100% null.
+- `[low]` `Null Heavy Column`: Column 'ELEVATI13' is 100% null.
   Suggested fix: Review whether sparse fields should be populated or removed.
-- `[low]` `NULL_HEAVY_COLUMN`: Column 'HEIGHT_15' is 100% null.
+- `[low]` `Null Heavy Column`: Column 'HEIGHT_15' is 100% null.
   Suggested fix: Review whether sparse fields should be populated or removed.
 
 ## Business Value
@@ -45,10 +45,10 @@ The most important finding is a duplicate geometry record. This may be valid for
 - Preserves feature-level IDs when available, making findings easier to trace back to source records.
 - Writes machine-readable artifacts for audit, triage, and follow-up workflows.
 
-## Artifacts
+## Output Files
 
-- output_dir: `demo/output`
-- issues_csv: `demo/output/issues.csv`
-- run_record: `demo/output/run_record.json`
-- summary: `demo/output/summary.json`
-- report: `demo/output/qa_report.md`
+- Output Directory: `demo/output`
+- Issues Csv: `demo/output/issues.csv`
+- Run Record: `demo/output/run_record.json`
+- Summary: `demo/output/summary.json`
+- Report: `demo/output/qa_report.md`

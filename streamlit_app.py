@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import csv
 import json
-import tempfile
 from pathlib import Path
 from typing import Any
 
-from geoqa.config import AppConfig, ConfigError, diagnose_config, load_app_config
+import streamlit as st
+
+from geoqa.config import AppConfig, diagnose_config, load_app_config
 from geoqa.llm.gateway import StaticLLMGateway, build_openai_gateway
 from geoqa.models import QAResult
 from geoqa.reporting.agent_report_generator import (
@@ -14,16 +15,52 @@ from geoqa.reporting.agent_report_generator import (
     read_agent_review_status,
     review_existing_agent_report,
 )
+from geoqa.review.human_review import read_review_history
 from geoqa.runner import run_geoqa
-from geoqa.workflows import compare_run_outputs, export_handoff_bundle, generate_fix_plan_artifacts, load_run_index
+from geoqa.workflows import (
+    compare_run_outputs,
+    export_handoff_bundle,
+    generate_fix_plan_artifacts,
+    load_comparison_index,
+    load_run_index,
+    load_selected_comparison,
+)
+
+
+DEFAULT_PAGE_SIZE = 25
+
+DISPLAY_LABELS = {
+    "run_id": "Run ID",
+    "dataset_name": "Dataset",
+    "started_at": "Started At",
+    "finished_at": "Completed At",
+    "readiness_band": "Readiness",
+    "readiness_score": "Readiness Score",
+    "review_status": "Review Status",
+    "output_dir": "Output Folder",
+    "comparison_key": "Comparison",
+    "base_run_id": "Baseline Run",
+    "target_run_id": "Compared Run",
+    "severity": "Severity",
+    "issue_code": "Finding Type",
+    "message": "Finding Details",
+    "feature_id": "Record ID",
+    "suggested_fix": "Suggested Action",
+    "context": "Evidence",
+    "column": "Column",
+    "report_path": "Report File",
+    "summary_path": "Summary File",
+    "generated_at": "Generated At",
+}
 
 
 def run_uploaded_dataset(
     input_path: str,
+    *,
     output_root: str,
     required_columns: list[str] | None = None,
     target_crs: str | None = None,
-):
+) -> QAResult:
     return run_geoqa(
         input_path=input_path,
         output_root=output_root,
@@ -64,7 +101,7 @@ def build_static_demo_report(result: QAResult, prompt_name: str = "technical_rep
         lines = ["## Fix Recommendations", ""]
         if result.issues:
             for issue in result.issues:
-                lines.append(f"- `{issue.issue_code}`: {issue.suggested_fix}")
+                lines.append(f"- `{_humanize_issue_code(issue.issue_code)}`: {issue.suggested_fix}")
         else:
             lines.append("- No fixes are recommended because the deterministic checks found no issues.")
         return "\n".join(lines)
@@ -76,8 +113,7 @@ def build_static_demo_report(result: QAResult, prompt_name: str = "technical_rep
         "",
         (
             f"GeoQA inspected `{dataset.get('filename', 'dataset')}`, containing "
-            f"{dataset.get('feature_count', 0)} features with "
-            f"{geometry_types} geometry in {dataset.get('crs', 'unknown CRS')}."
+            f"{dataset.get('feature_count', 0)} features with {geometry_types} geometry in {dataset.get('crs', 'unknown CRS')}."
         ),
         "",
         (
@@ -85,46 +121,23 @@ def build_static_demo_report(result: QAResult, prompt_name: str = "technical_rep
             f"with a readiness score of `{readiness.get('score', 0)}/100`."
         ),
         "",
-        "## Evidence Used",
+        "## Deterministic Findings",
         "",
-        (
-            f"- `summary.json` reports {dataset.get('feature_count', 0)} features and "
-            f"a readiness band of `{readiness.get('band', 'unknown')}`."
-        ),
-        (
-            "- `run_record.json` captures the enabled checks, CRS, geometry type, "
-            "and normalization notes for this run."
-        ),
-        (
-            f"- `issues.csv` contains {issue_counts.get('total', 0)} findings."
-        ),
+        f"- Total findings: `{issue_counts.get('total', 0)}`",
+        f"- High severity findings: `{issue_counts.get('high', 0)}`",
+        f"- Medium severity findings: `{issue_counts.get('medium', 0)}`",
+        f"- Low severity findings: `{issue_counts.get('low', 0)}`",
         "",
-        "## Key Findings",
+        "## Conditional Workflow Guidance",
         "",
+        "- Review the deterministic findings before downstream use.",
+        "- Use the retrieved fix playbooks to confirm remediation steps before approving the AI report.",
+        "",
+        "## Limits of Interpretation",
+        "",
+        "- This draft is grounded in GeoQA evidence and retrieved playbook text.",
+        "- It does not claim workflow suitability unless the deterministic QA evidence explicitly proves that result.",
     ]
-
-    if result.issues:
-        for issue in result.issues[:5]:
-            lines.append(
-                f"- `{issue.issue_code}` is reported as `{issue.severity}` severity: {issue.message}"
-            )
-    else:
-        lines.append("- No QA findings were detected by the configured checks.")
-
-    lines.extend(
-        [
-            "",
-            "## Recommended Review Actions",
-            "",
-            "- Review the deterministic findings before downstream use.",
-            "- Use the retrieved fix playbooks to confirm remediation steps before approving the AI report.",
-            "",
-            "## Limits of Interpretation",
-            "",
-            "- This draft is grounded in GeoQA evidence and retrieved playbook text.",
-            "- It does not claim workflow suitability unless the deterministic QA evidence explicitly proves that result.",
-        ]
-    )
     return "\n".join(lines)
 
 
@@ -139,350 +152,389 @@ def generate_agent_draft(
 ):
     if app_config is not None and not app_config.agent_report_enabled:
         raise RuntimeError("Agent reports are disabled by GEOQA_AGENT_REPORT_ENABLED=0.")
-    gateway = StaticLLMGateway(build_static_demo_report(result, prompt_name=prompt_name)) if use_static_demo else None
-    if not use_static_demo and app_config is not None:
-        gateway = build_openai_gateway(app_config, default_model=model or app_config.llm_model)
+
+    if use_static_demo:
+        gateway = StaticLLMGateway(build_static_demo_report(result, prompt_name=prompt_name))
+    else:
+        effective_config = app_config or load_app_config()
+        gateway = build_openai_gateway(effective_config, default_model=model or effective_config.llm_model)
+
     return generate_agent_report_artifacts(
         result,
         gateway=gateway,
         model=model,
         playbook_dir=playbook_dir,
         prompt_name=prompt_name,
-        approve=False,
-        runtime_config=runtime_config,
+        runtime_config=runtime_config or (app_config.to_safe_dict() if app_config else {}),
     )
 
 
 def review_agent_output(output_dir: str, action: str, reviewer_name: str, notes: str | None = None) -> dict[str, Any]:
-    result = review_existing_agent_report(output_dir, action=action, reviewer_name=reviewer_name, notes=notes)
-    result["review_status_payload"] = read_agent_review_status(output_dir)
-    return result
+    artifacts = review_existing_agent_report(output_dir, action=action, reviewer_name=reviewer_name, notes=notes)
+    artifacts["review_status_payload"] = read_agent_review_status(output_dir)
+    return artifacts
 
 
-def generate_fix_plan(output_dir: str) -> dict[str, str]:
-    return generate_fix_plan_artifacts(output_dir)
+def generate_fix_plan(output_dir: str, playbook_dir: str | None = None) -> dict[str, str]:
+    return generate_fix_plan_artifacts(output_dir, playbook_dir=playbook_dir)
 
 
 def compare_existing_runs(base_output_dir: str, target_output_dir: str) -> dict[str, str]:
     return compare_run_outputs(base_output_dir, target_output_dir)
 
 
-def export_handoff(output_dir: str) -> dict[str, str]:
-    return export_handoff_bundle(output_dir)
+def export_handoff(output_dir: str, comparison_key: str | None = None) -> dict[str, str | bool]:
+    return export_handoff_bundle(output_dir, comparison_key=comparison_key)
 
 
 def load_recent_runs(output_root: str) -> list[dict[str, Any]]:
     return load_run_index(output_root)
 
 
-def load_run_artifacts(output_dir: str) -> dict[str, Any]:
-    output_path = Path(output_dir)
-    payload: dict[str, Any] = {"output_dir": str(output_path)}
-    json_artifacts = {
-        "summary": "summary.json",
-        "run_record": "run_record.json",
-        "report_consistency": "report_consistency.json",
-        "hallucination_check": "hallucination_check.json",
-        "review_status": "review_status.json",
-        "agent_report_json": "agent_report.json",
-        "fix_plan_json": "fix_plan.json",
-        "comparison_summary": "comparison_summary.json",
-        "bundle_manifest": "bundle_manifest.json",
+def load_issue_filter_options(output_dir: str) -> dict[str, Any]:
+    rows = _read_issues_csv(Path(output_dir) / "issues.csv")
+    severity_counts: dict[str, int] = {}
+    issue_code_counts: dict[str, int] = {}
+    feature_ids: set[str] = set()
+    columns: set[str] = set()
+
+    for row in rows:
+        severity = str(row.get("severity") or "")
+        issue_code = str(row.get("issue_code") or "")
+        feature_id = str(row.get("feature_id") or "")
+        if severity:
+            severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        if issue_code:
+            issue_code_counts[issue_code] = issue_code_counts.get(issue_code, 0) + 1
+        if feature_id:
+            feature_ids.add(feature_id)
+        context = row.get("context")
+        if isinstance(context, dict) and context.get("column"):
+            columns.add(str(context["column"]))
+
+    return {
+        "total_rows": len(rows),
+        "severity_counts": dict(sorted(severity_counts.items())),
+        "issue_code_counts": dict(sorted(issue_code_counts.items())),
+        "feature_ids": sorted(feature_ids),
+        "columns": sorted(columns),
     }
-    text_artifacts = {
-        "deterministic_report": "qa_report.md",
-        "agent_report_draft": "agent_report_draft.md",
-        "agent_report": "agent_report.md",
-        "issues_csv": "issues.csv",
-        "fix_plan_markdown": "fix_plan.md",
-        "comparison_report": "comparison_report.md",
-    }
-
-    for key, filename in json_artifacts.items():
-        path = output_path / filename
-        payload[key] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
-    for key, filename in text_artifacts.items():
-        path = output_path / filename
-        payload[key] = path.read_text(encoding="utf-8") if path.exists() else None
-        payload[f"{key}_path"] = str(path) if path.exists() else None
-    payload["review_history"] = _read_json_lines(output_path / "review_history.jsonl")
-    payload["issues_rows"] = _read_issues_csv_rows(output_path / "issues.csv")
-    bundle_path = output_path / "handoff_bundle.zip"
-    payload["handoff_bundle_path"] = str(bundle_path) if bundle_path.exists() else None
-    return payload
 
 
-def filter_issue_rows(
-    issues: list[dict[str, Any]],
+def load_issue_rows_page(
+    output_dir: str,
     *,
     severity: str | None = None,
     issue_code: str | None = None,
     feature_id: str | None = None,
-    column_name: str | None = None,
-) -> list[dict[str, Any]]:
-    rows = issues
-    if severity:
-        rows = [row for row in rows if row.get("severity") == severity]
-    if issue_code:
-        rows = [row for row in rows if row.get("issue_code") == issue_code]
-    if feature_id:
-        rows = [row for row in rows if str(row.get("feature_id", "")) == feature_id]
-    if column_name:
-        rows = [
-            row
-            for row in rows
-            if isinstance(row.get("context"), dict) and str(row["context"].get("column", "")) == column_name
-        ]
-    return rows
+    column: str | None = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
+) -> dict[str, Any]:
+    total_rows = 0
+    page_rows: list[dict[str, Any]] = []
+    for row in _iter_issue_rows(Path(output_dir) / "issues.csv"):
+        if severity and row.get("severity") != severity:
+            continue
+        if issue_code and row.get("issue_code") != issue_code:
+            continue
+        if feature_id and str(row.get("feature_id") or "") != feature_id:
+            continue
+        if column:
+            context = row.get("context")
+            if not (isinstance(context, dict) and str(context.get("column") or "") == column):
+                continue
+        if total_rows >= offset and len(page_rows) < limit:
+            page_rows.append(row)
+        total_rows += 1
+    return {
+        "total_rows": total_rows,
+        "offset": offset,
+        "limit": limit,
+        "rows": page_rows,
+    }
 
 
-def _read_json_lines(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-
-
-def _read_issues_csv_rows(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    with path.open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-    for row in rows:
-        context = row.get("context")
-        row["context"] = json.loads(context) if context else {}
-    return rows
+def load_run_artifacts(output_dir: str, comparison_key: str | None = None) -> dict[str, Any]:
+    output_path = Path(output_dir)
+    payload: dict[str, Any] = {
+        "output_dir": str(output_path),
+        "summary": _read_json_if_exists(output_path / "summary.json"),
+        "run_record": _read_json_if_exists(output_path / "run_record.json"),
+        "review_status": read_agent_review_status(output_path),
+        "review_history": read_review_history(output_path),
+        "qa_report": _read_text_if_exists(output_path / "qa_report.md"),
+        "agent_report_draft": _read_text_if_exists(output_path / "agent_report_draft.md"),
+        "agent_report": _read_text_if_exists(output_path / "agent_report.md"),
+        "fix_plan_markdown": _read_text_if_exists(output_path / "fix_plan.md"),
+        "bundle_manifest": _read_json_if_exists(output_path / "bundle_manifest.json"),
+        "comparison_index": load_comparison_index(output_path),
+        "selected_comparison": load_selected_comparison(output_path, comparison_key=comparison_key),
+    }
+    payload["issue_filters"] = load_issue_filter_options(str(output_path))
+    return payload
 
 
 def render_app() -> None:  # pragma: no cover - visual shell
-    import streamlit as st
-
     st.set_page_config(page_title="GeoQA Agent", layout="wide")
-    st.title("GeoQA Agent")
-    st.caption("Deterministic spatial QA with evidence-backed agent report drafts and review controls.")
+    st.title("GeoQA Analyst Console")
 
-    try:
-        config = load_app_config()
-    except ConfigError as exc:
-        st.error(f"Configuration error: {exc}")
-        return
+    config = load_app_config()
+    diagnostics = diagnose_config(config)
+    output_root = config.output_root
 
-    config_summary = diagnose_config(config)
+    with st.sidebar:
+        st.header("Runtime")
+        st.code(output_root)
+        if diagnostics["issues"]:
+            st.warning("\n".join(diagnostics["issues"]))
+        else:
+            st.success("Runtime configuration looks healthy.")
 
-    uploaded = st.file_uploader("Upload GeoJSON, GeoPackage, or zipped shapefile", type=["geojson", "json", "gpkg", "zip"])
-    required_columns_text = st.text_input("Required columns", value="", help="Comma-separated column names.")
-    target_crs = st.text_input("Target CRS", value="", help="Optional, for example EPSG:4326.")
-    output_root = st.text_input("Output directory", value=config.output_root)
-    existing_output_dir = st.text_input("Open existing run output directory", value="")
-
-    st.subheader("Agent report options")
-    include_agent_report = st.checkbox("Generate agent-assisted draft report")
-    use_static_demo = st.checkbox("Use static demo mode (no API key)", value=not config.openai_api_key)
-    llm_model = st.text_input("LLM model", value=config.llm_model or "")
-    prompt_name = st.selectbox(
-        "Prompt template",
-        options=["technical_report_v1", "executive_summary_v1", "fix_recommendation_v1"],
-        index=0,
-    )
-    reviewer_name = st.text_input("Reviewer name", value="")
-    review_notes = st.text_area("Review notes", value="")
-
-    if "latest_output_dir" not in st.session_state:
-        st.session_state["latest_output_dir"] = None
-
-    st.subheader("Recent runs")
+    st.subheader("Recent Runs")
     recent_runs = load_recent_runs(output_root)
     if recent_runs:
-        labels = [
-            f"{run['dataset_name']} | {run['readiness_band']} | {run['run_id']}"
-            for run in recent_runs[:10]
-        ]
-        selected_recent_run = st.selectbox("Recent run browser", options=[""] + labels, index=0)
-        if selected_recent_run:
-            selected_entry = recent_runs[labels.index(selected_recent_run)]
-            st.session_state["latest_output_dir"] = selected_entry["output_dir"]
+        st.dataframe(format_recent_runs_for_display(recent_runs), use_container_width=True)
+    else:
+        st.info("No runs found yet.")
 
-    st.subheader("Runtime diagnostics")
-    st.json(config_summary)
-    if not config.agent_report_enabled:
-        st.warning("Agent reports are disabled by configuration. Deterministic QA remains available.")
-    elif not use_static_demo and (not config.openai_api_key or not (llm_model or config.llm_model)):
-        st.warning("OpenAI mode is not ready. Provide OPENAI_API_KEY and a model, or use static demo mode.")
-
-    if st.button("Open existing run", disabled=not existing_output_dir.strip()):
-        st.session_state["latest_output_dir"] = existing_output_dir.strip()
-
-    if st.button("Run GeoQA", type="primary", disabled=uploaded is None):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            input_path = Path(tmp_dir) / uploaded.name
-            input_path.write_bytes(uploaded.getvalue())
-            required_columns = [column.strip() for column in required_columns_text.split(",") if column.strip()]
-            result = run_uploaded_dataset(
-                str(input_path),
-                output_root=output_root,
-                required_columns=required_columns,
-                target_crs=target_crs or None,
-            )
-            st.session_state["latest_output_dir"] = result.artifact_paths["output_dir"]
-            st.success(f"GeoQA completed: {result.run_record.readiness_band} ({result.run_record.readiness_score}/100)")
-
-            if include_agent_report:
-                try:
-                    generate_agent_draft(
-                        result,
-                        model=llm_model or None,
-                        prompt_name=prompt_name,
-                        use_static_demo=use_static_demo,
-                        runtime_config=config.to_safe_dict(),
-                        app_config=config,
-                    )
-                except Exception as exc:  # pragma: no cover - streamlit operator surface
-                    st.error(f"Agent draft generation failed: {exc}")
-
-    output_dir = st.session_state.get("latest_output_dir")
-    if output_dir:
-        artifacts = load_run_artifacts(output_dir)
-        st.subheader("Current run")
-        st.code(output_dir)
-
-        st.subheader("Deterministic artifacts")
-        st.json(artifacts["summary"])
-        if artifacts["deterministic_report"]:
-            st.markdown(artifacts["deterministic_report"])
-            st.download_button(
-                "Download deterministic report",
-                artifacts["deterministic_report"],
-                file_name="qa_report.md",
-            )
-        if artifacts["issues_csv"]:
-            st.download_button(
-                "Download issues CSV",
-                artifacts["issues_csv"],
-                file_name="issues.csv",
-            )
-
-        st.subheader("Issue triage")
-        triage_col1, triage_col2 = st.columns(2)
-        with triage_col1:
-            severity_filter = st.selectbox("Severity filter", options=["", "high", "medium", "low"], index=0)
-            issue_code_options = [""] + sorted(
-                {row.get("issue_code", "") for row in artifacts["issues_rows"] if row.get("issue_code")}
-            )
-            issue_code_filter = st.selectbox("Issue code filter", options=issue_code_options, index=0)
-        with triage_col2:
-            feature_id_filter = st.text_input("Feature ID filter", value="")
-            column_options = [""] + sorted(
-                {
-                    str(row.get("context", {}).get("column"))
-                    for row in artifacts["issues_rows"]
-                    if isinstance(row.get("context"), dict) and row.get("context", {}).get("column")
-                }
-            )
-            column_filter = st.selectbox("Column filter", options=column_options, index=0)
-        filtered_rows = filter_issue_rows(
-            artifacts["issues_rows"],
-            severity=severity_filter or None,
-            issue_code=issue_code_filter or None,
-            feature_id=feature_id_filter or None,
-            column_name=column_filter or None,
-        )
-        st.json(filtered_rows)
-
-        if artifacts["review_status"]:
-            st.subheader("Agent review status")
-            st.json(artifacts["review_status"])
-            status = artifacts["review_status"].get("status")
-            if status == "blocked":
-                st.error("Agent draft is blocked by consistency or grounding checks.")
-            elif status == "draft_ready":
-                st.info("Agent draft is ready for human review.")
-            elif status == "rejected":
-                st.warning("Agent draft has been rejected.")
-            elif status == "approved":
-                st.success("Agent report has been approved.")
+    st.subheader("Run Deterministic QA")
+    input_path = st.text_input("Dataset path")
+    required_columns = st.text_input("Required columns (comma separated)", value="asset_id")
+    target_crs = st.text_input("Target CRS", value="")
+    use_static_demo = st.checkbox("Static demo mode", value=not config.openai_api_key)
+    prompt_name = st.selectbox(
+        "Agent prompt",
+        ["technical_report_v1", "executive_summary_v1", "fix_recommendation_v1"],
+        index=0,
+    )
+    if st.button("Run QA"):
+        if not input_path.strip():
+            st.error("Provide a dataset path first.")
         else:
-            st.info("No agent review artifacts exist for this run yet.")
-
-        if artifacts.get("agent_report_json"):
-            st.subheader("Agent provenance")
-            st.json(artifacts["agent_report_json"])
-
-        if artifacts["agent_report_draft"]:
-            st.subheader("Agent report draft")
-            st.markdown(artifacts["agent_report_draft"])
-            st.download_button(
-                "Download agent draft",
-                artifacts["agent_report_draft"],
-                file_name="agent_report_draft.md",
+            result = run_uploaded_dataset(
+                input_path.strip(),
+                output_root=output_root,
+                required_columns=[value.strip() for value in required_columns.split(",") if value.strip()],
+                target_crs=target_crs.strip() or None,
             )
+            st.session_state["geoqa_output_dir"] = result.artifact_paths["output_dir"]
+            st.success(f"Run complete: {result.artifact_paths['output_dir']}")
+            if st.checkbox("Generate agent draft immediately", value=True, key="generate_draft_after_run"):
+                generate_agent_draft(
+                    result,
+                    playbook_dir=None,
+                    prompt_name=prompt_name,
+                    use_static_demo=use_static_demo,
+                    app_config=config,
+                    runtime_config=config.to_safe_dict(),
+                )
+                st.success("Agent draft generated.")
 
-        if artifacts["report_consistency"] or artifacts["hallucination_check"]:
-            left, right = st.columns(2)
-            with left:
-                st.subheader("Consistency check")
-                st.json(artifacts["report_consistency"])
-            with right:
-                st.subheader("Hallucination monitor")
-                st.json(artifacts["hallucination_check"])
+    st.subheader("Open Existing Run")
+    existing_output_dir = st.text_input("Existing output directory", value=st.session_state.get("geoqa_output_dir", ""))
+    if existing_output_dir.strip():
+        st.session_state["geoqa_output_dir"] = existing_output_dir.strip()
 
-        remediation_col1, remediation_col2 = st.columns(2)
-        with remediation_col1:
-            if st.button("Generate fix plan", disabled=not artifacts["issues_csv"]):
-                generate_fix_plan(output_dir)
-                st.rerun()
-        with remediation_col2:
-            if st.button("Export handoff bundle", disabled=not artifacts["summary"]):
-                export_handoff(output_dir)
-                st.rerun()
+    selected_output_dir = st.session_state.get("geoqa_output_dir")
+    if not selected_output_dir:
+        return
 
-        if artifacts["fix_plan_markdown"]:
-            st.subheader("Remediation plan")
-            st.markdown(artifacts["fix_plan_markdown"])
+    artifacts = load_run_artifacts(selected_output_dir)
+    st.subheader("Current Run")
+    st.write(format_run_overview_for_display(selected_output_dir, artifacts))
 
-        st.subheader("Compare runs")
-        comparison_target = st.text_input("Compare current run against", value="")
-        if st.button("Generate comparison", disabled=not comparison_target.strip()):
-            compare_existing_runs(comparison_target.strip(), output_dir)
-            st.rerun()
-        if artifacts["comparison_report"]:
-            st.markdown(artifacts["comparison_report"])
+    st.markdown("### Issue Triage")
+    filters = artifacts["issue_filters"]
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        severity = st.selectbox("Severity", [""] + list(filters["severity_counts"].keys()), key="severity_filter", format_func=lambda value: _humanize_status(value) if value else "All")
+    with col2:
+        issue_code = st.selectbox("Finding type", [""] + list(filters["issue_code_counts"].keys()), key="issue_code_filter", format_func=lambda value: _humanize_issue_code(value) if value else "All")
+    with col3:
+        feature_id = st.selectbox("Record ID", [""] + filters["feature_ids"], key="feature_id_filter", format_func=lambda value: value if value else "All")
+    with col4:
+        column = st.selectbox("Column", [""] + filters["columns"], key="column_filter", format_func=lambda value: value if value else "All")
 
-        review_col1, review_col2 = st.columns(2)
-        with review_col1:
-            if st.button("Approve draft", disabled=not reviewer_name or not artifacts["agent_report_draft"]):
+    page = load_issue_rows_page(
+        selected_output_dir,
+        severity=severity or None,
+        issue_code=issue_code or None,
+        feature_id=feature_id or None,
+        column=column or None,
+        limit=DEFAULT_PAGE_SIZE,
+        offset=0,
+    )
+    st.caption(f"Showing {len(page['rows'])} of {page['total_rows']} filtered rows")
+    st.dataframe(format_issue_rows_for_display(page["rows"]), use_container_width=True)
+
+    st.markdown("### Remediation")
+    playbook_dir = st.text_input("Custom playbook directory", value="")
+    if st.button("Generate Fix Plan"):
+        generate_fix_plan(selected_output_dir, playbook_dir=playbook_dir or None)
+        st.success("Fix plan generated.")
+        artifacts = load_run_artifacts(selected_output_dir)
+    if artifacts.get("fix_plan_markdown"):
+        st.markdown(artifacts["fix_plan_markdown"])
+
+    st.markdown("### Compare Runs")
+    comparison_target = st.text_input("Base run output directory")
+    if st.button("Compare Against Base Run"):
+        if comparison_target.strip():
+            compare_existing_runs(comparison_target.strip(), selected_output_dir)
+            st.success("Comparison generated.")
+            artifacts = load_run_artifacts(selected_output_dir)
+    if artifacts.get("comparison_index"):
+        st.dataframe(format_comparisons_for_display(artifacts["comparison_index"]), use_container_width=True)
+
+    st.markdown("### Review")
+    reviewer_name = st.text_input("Reviewer name")
+    review_notes = st.text_area("Review notes")
+    review_cols = st.columns(2)
+    with review_cols[0]:
+        if st.button("Approve Draft"):
+            review_agent_output(selected_output_dir, action="approve", reviewer_name=reviewer_name, notes=review_notes or None)
+            st.success("Draft approved.")
+            artifacts = load_run_artifacts(selected_output_dir)
+    with review_cols[1]:
+        if st.button("Reject Draft"):
+            review_agent_output(selected_output_dir, action="reject", reviewer_name=reviewer_name, notes=review_notes or None)
+            st.warning("Draft rejected.")
+            artifacts = load_run_artifacts(selected_output_dir)
+
+    st.markdown("### Handoff")
+    comparison_key = None
+    if artifacts.get("comparison_index"):
+        comparison_options = [item["comparison_key"] for item in artifacts["comparison_index"]]
+        comparison_key = st.selectbox("Comparison to include", [""] + comparison_options, format_func=lambda value: value if value else "Latest comparison")
+    if st.button("Export Handoff Bundle"):
+        bundle = export_handoff(selected_output_dir, comparison_key=comparison_key or None)
+        st.success(f"Bundle created: {bundle['handoff_bundle']}")
+        artifacts = load_run_artifacts(selected_output_dir, comparison_key=comparison_key or None)
+
+
+def format_recent_runs_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    formatted: list[dict[str, Any]] = []
+    for row in rows:
+        issue_counts = row.get("issue_counts") or {}
+        formatted.append(
+            {
+                "Run ID": row.get("run_id"),
+                "Dataset": row.get("dataset_name"),
+                "Completed At": row.get("finished_at") or row.get("started_at"),
+                "Readiness": row.get("readiness_band"),
+                "Readiness Score": row.get("readiness_score"),
+                "Review Status": _humanize_status(row.get("review_status")),
+                "High Issues": issue_counts.get("high", 0),
+                "Medium Issues": issue_counts.get("medium", 0),
+                "Low Issues": issue_counts.get("low", 0),
+                "Total Issues": issue_counts.get("total", 0),
+                "Output Folder": row.get("output_dir"),
+            }
+        )
+    return formatted
+
+
+def format_run_overview_for_display(output_dir: str, artifacts: dict[str, Any]) -> dict[str, Any]:
+    summary = artifacts.get("summary") or {}
+    dataset = summary.get("dataset") or {}
+    readiness = summary.get("readiness") or {}
+    return {
+        "Output Folder": output_dir,
+        "Dataset": dataset.get("filename"),
+        "Feature Count": dataset.get("feature_count"),
+        "Geometry Type": ", ".join(dataset.get("geometry_types", [])) if dataset.get("geometry_types") else None,
+        "Coordinate System": dataset.get("crs"),
+        "Readiness": readiness.get("band"),
+        "Readiness Score": readiness.get("score"),
+        "Review Status": _humanize_status((artifacts.get("review_status") or {}).get("status")),
+        "Total Findings": (artifacts.get("issue_filters") or {}).get("total_rows", 0),
+    }
+
+
+def format_issue_rows_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    formatted: list[dict[str, Any]] = []
+    for row in rows:
+        formatted.append(
+            {
+                "Severity": _humanize_status(row.get("severity")),
+                "Finding Type": _humanize_issue_code(row.get("issue_code")),
+                "Record ID": row.get("feature_id") or "",
+                "Finding Details": row.get("message") or "",
+                "Suggested Action": row.get("suggested_fix") or "",
+                "Evidence": _format_context_for_display(row.get("context")),
+            }
+        )
+    return formatted
+
+
+def format_comparisons_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "Comparison": row.get("comparison_key"),
+            "Generated At": row.get("generated_at"),
+            "Baseline Run": row.get("base_run_id"),
+            "Compared Run": row.get("target_run_id"),
+            "Summary File": row.get("summary_path"),
+            "Report File": row.get("report_path"),
+        }
+        for row in rows
+    ]
+
+
+def _humanize_issue_code(value: Any) -> str:
+    if not value:
+        return ""
+    return str(value).replace("_", " ").title()
+
+
+def _humanize_status(value: Any) -> str:
+    if not value:
+        return ""
+    return str(value).replace("_", " ").title()
+
+
+def _format_context_for_display(context: Any) -> str:
+    if context in (None, "", {}):
+        return ""
+    if isinstance(context, dict):
+        parts = []
+        for key, value in context.items():
+            label = DISPLAY_LABELS.get(str(key), str(key).replace("_", " ").title())
+            parts.append(f"{label}: {value}")
+        return "; ".join(parts)
+    return str(context)
+
+
+def _read_issues_csv(path: Path) -> list[dict[str, Any]]:
+    return list(_iter_issue_rows(path))
+
+
+def _iter_issue_rows(path: Path):
+    if not path.exists():
+        return
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            context = row.get("context")
+            if context:
                 try:
-                    review_agent_output(output_dir, action="approve", reviewer_name=reviewer_name, notes=review_notes or None)
-                    st.rerun()
-                except Exception as exc:  # pragma: no cover - streamlit operator surface
-                    st.error(f"Approval failed: {exc}")
-        with review_col2:
-            if st.button("Reject draft", disabled=not reviewer_name or not artifacts["agent_report_draft"]):
-                try:
-                    review_agent_output(output_dir, action="reject", reviewer_name=reviewer_name, notes=review_notes or None)
-                    st.rerun()
-                except Exception as exc:  # pragma: no cover - streamlit operator surface
-                    st.error(f"Rejection failed: {exc}")
-
-        if artifacts["agent_report"]:
-            st.subheader("Approved agent report")
-            st.markdown(artifacts["agent_report"])
-            st.download_button(
-                "Download approved agent report",
-                artifacts["agent_report"],
-                file_name="agent_report.md",
-            )
-
-        if artifacts["review_history"]:
-            st.subheader("Review history")
-            st.json(artifacts["review_history"])
-
-        if artifacts["handoff_bundle_path"]:
-            bundle_path = Path(artifacts["handoff_bundle_path"])
-            st.download_button(
-                "Download handoff bundle",
-                bundle_path.read_bytes(),
-                file_name=bundle_path.name,
-            )
+                    row["context"] = json.loads(context)
+                except json.JSONDecodeError:
+                    row["context"] = context
+            yield row
 
 
-if __name__ == "__main__":  # pragma: no cover - streamlit entrypoint
+def _read_json_if_exists(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _read_text_if_exists(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+if __name__ == "__main__":  # pragma: no cover - visual shell
     render_app()

@@ -1,0 +1,10 @@
+services:
+  geoqa-agent:
+    build: .
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - ./outputs:/app/outputs
+      - ./demo/output:/app/demo/output

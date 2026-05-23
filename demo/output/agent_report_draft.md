@@ -16,8 +16,8 @@ The most important finding is a duplicate geometry record. This may be valid for
 
 ## Key Findings
 
-- `DUPLICATE_GEOMETRY` was detected for feature `12`, which duplicates the geometry of feature `11`.
-- `NULL_HEAVY_COLUMN` was detected for `ELEVATI12`, `ELEVATI13`, and `HEIGHT_15`.
+- `Duplicate Geometry` was detected for record `12`, which duplicates the geometry of record `11`.
+- `Null Heavy Column` was detected for `ELEVATI12`, `ELEVATI13`, and `HEIGHT_15`.
 - No high-severity issues were detected in this sample.
 
 ## Recommended Review Actions

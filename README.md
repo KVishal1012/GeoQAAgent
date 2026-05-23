@@ -167,6 +167,7 @@ python app.py --review-output-dir demo/output --reject-agent-report --reviewer-n
 - Consistency check: [demo/output/report_consistency.json](demo/output/report_consistency.json)
 - Hallucination monitor: [demo/output/hallucination_check.json](demo/output/hallucination_check.json)
 - Review status: [demo/output/review_status.json](demo/output/review_status.json)
+- Review history: `review_history.jsonl` in each run folder
 
 ### GitHub preview
 
@@ -193,6 +194,82 @@ streamlit run streamlit_app.py
 ```
 
 The Streamlit app supports deterministic QA runs, static demo-mode draft generation, consistency and hallucination inspection, review actions, and artifact downloads in one page.
+
+## Production run path in V2.1
+
+V2.1 hardens the existing V2 workflow for single-host internal deployment.
+
+### Runtime configuration
+
+Use `.env.example` as the base configuration. The production config layer supports:
+
+- `OPENAI_API_KEY`
+- `GEOQA_LLM_MODEL`
+- `GEOQA_OUTPUT_ROOT`
+- `GEOQA_AGENT_REPORT_ENABLED`
+- `GEOQA_OPENAI_TIMEOUT_SECONDS`
+- `GEOQA_OPENAI_MAX_RETRIES`
+- `GEOQA_OPENAI_RETRY_BACKOFF_SECONDS`
+
+Validate runtime configuration before first use:
+
+```bash
+python app.py --diagnose-config
+```
+
+### Container deployment
+
+Build and run the single-host deployment:
+
+```bash
+docker compose up --build
+```
+
+The default Streamlit endpoint is `http://localhost:8501`.
+
+Persistent storage strategy:
+
+- mount `./outputs` to preserve runtime artifacts
+- keep `review_status.json` as the current review state
+- keep `review_history.jsonl` as the append-only review audit trail
+
+### Operations runbook
+
+See [docs/v2.1_operations.md](docs/v2.1_operations.md) for build, env, storage, and retention guidance.
+
+
+
+## V3 analyst workflow
+
+V3 turns GeoQA into an analyst workflow product on top of the deterministic QA and evidence-backed agent report layers.
+
+V3 adds:
+
+- recent-run browsing through `run_index.jsonl`
+- saved run comparisons with stable comparison keys
+- deterministic fix-plan generation with playbook grounding
+- handoff bundle export with completeness validation
+- paged issue triage in Streamlit instead of full issue JSON dumps
+
+### V3 full analyst CLI flow
+
+```bash
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-report --llm-provider static --static-report-file demo/output/agent_report_draft.md --reviewer-name "Demo Reviewer" --approve-agent-report
+python app.py --review-output-dir demo/output --generate-fix-plan
+python app.py --compare-run-dir demo/output_previous --target-run-dir demo/output
+python app.py --review-output-dir demo/output --export-handoff-bundle
+```
+
+### V3 workflow artifacts
+
+- `run_index.jsonl`
+- `fix_plan.md`
+- `fix_plan.json`
+- `comparison_index.json`
+- `comparisons/<comparison_key>/comparison_summary.json`
+- `comparisons/<comparison_key>/comparison_report.md`
+- `bundle_manifest.json`
+- `handoff_bundle.zip`
 
 ## Checks in v1
 

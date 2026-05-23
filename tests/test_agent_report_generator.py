@@ -6,7 +6,7 @@ import pytest
 from app import build_parser, validate_args
 from geoqa.llm.gateway import LLMGatewayError, OpenAILLMGateway, StaticFileLLMGateway, StaticLLMGateway
 from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts, review_existing_agent_report
-from geoqa.review.human_review import ReviewError, approve_agent_report, read_review_status, reject_agent_report
+from geoqa.review.human_review import ReviewError, approve_agent_report, read_review_history, read_review_status, reject_agent_report
 from geoqa.runner import run_geoqa
 
 
@@ -50,6 +50,7 @@ def test_agent_report_generation_writes_draft_but_not_final_before_approval(tmp_
     assert Path(artifacts["report_consistency"]).exists()
     assert Path(artifacts["hallucination_check"]).exists()
     assert Path(artifacts["review_status"]).exists()
+    assert Path(artifacts["review_history"]).exists()
     assert not (output_dir / "agent_report.md").exists()
 
 
@@ -100,6 +101,23 @@ def test_agent_report_rejection_persists_review_state(tmp_path):
     stored = read_review_status(result.artifact_paths["output_dir"])
     assert stored is not None
     assert stored.status == "rejected"
+
+
+def test_review_history_appends_events_in_order(tmp_path):
+    input_path = tmp_path / "clean.geojson"
+    _write_clean_geojson(input_path)
+    result = run_geoqa(str(input_path), output_root=str(tmp_path / "outputs"), required_columns=["asset_id"])
+    report_text = (
+        "GeoQA inspected clean.geojson, containing 2 features with Point geometry in EPSG:4326. "
+        "The dataset is classified as `ready` with a readiness score of 100/100."
+    )
+    generate_agent_report_artifacts(result, gateway=StaticLLMGateway(report_text))
+    reject_agent_report(result.artifact_paths["output_dir"], reviewer_name="QA Reviewer", notes="Needs edits")
+    approve_agent_report(result.artifact_paths["output_dir"], reviewer_name="QA Reviewer", notes="Approved after review")
+
+    history = read_review_history(result.artifact_paths["output_dir"])
+
+    assert [entry["action"] for entry in history] == ["draft_ready", "rejected", "approved"]
 
 
 def test_failed_consistency_check_blocks_final_report(tmp_path):
@@ -178,6 +196,7 @@ def test_prompt_selection_is_recorded_in_agent_json(tmp_path):
     payload = json.loads(Path(artifacts["agent_report_json"]).read_text(encoding="utf-8"))
     assert payload["prompt_name"] == "executive_summary_v1"
     assert payload["review_status"]["status"] == "draft_ready"
+    assert "generated_at" in payload
 
 
 def test_existing_draft_can_be_approved_without_regeneration(tmp_path):
@@ -199,6 +218,7 @@ def test_existing_draft_can_be_approved_without_regeneration(tmp_path):
 
     assert Path(review_result["review_status"]).exists()
     assert Path(review_result["agent_report"]).exists()
+    assert Path(review_result["review_history"]).exists()
     payload = json.loads(Path(artifacts["agent_report_json"]).read_text(encoding="utf-8"))
     assert payload["review_status"]["status"] == "approved"
 
@@ -214,5 +234,12 @@ def test_cli_requires_reviewer_name_for_approval():
 def test_cli_allows_existing_review_without_input_path():
     parser = build_parser()
     args = parser.parse_args(["--review-output-dir", "outputs/run-123", "--approve-agent-report", "--reviewer-name", "QA Reviewer"])
+
+    validate_args(args, parser)
+
+
+def test_cli_allows_diagnose_config_without_input_path():
+    parser = build_parser()
+    args = parser.parse_args(["--diagnose-config"])
 
     validate_args(args, parser)

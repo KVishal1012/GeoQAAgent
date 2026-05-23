@@ -1,0 +1,8 @@
+.git
+.pytest_cache
+__pycache__
+*.py[cod]
+.DS_Store
+outputs
+demo/output/geoqa-*
+demo/output/run_log.jsonl

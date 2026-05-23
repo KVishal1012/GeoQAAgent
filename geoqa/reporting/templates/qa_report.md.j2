@@ -20,11 +20,11 @@ The most important finding is a small set of low-severity completeness or cleanu
 {% endif %}
 
 - Status: `{{ result.run_record.status }}`
-- Run ID: `{{ result.run_record.run_id }}`
+- Assessment ID: `{{ result.run_record.run_id }}`
 
-## Issue Counts
+## Finding Summary
 
-| Severity | Count | Meaning |
+| Priority | Count | Meaning |
 | --- | ---: | --- |
 | High | `{{ result.issue_counts.high }}` | Blocks reliable use until fixed |
 | Medium | `{{ result.issue_counts.medium }}` | Needs review before handoff |
@@ -39,11 +39,11 @@ The most important finding is a small set of low-severity completeness or cleanu
 - No normalization notes recorded.
 {% endfor %}
 
-## Top Issues
+## Top Findings
 
 {% for issue in result.issues[:20] %}
-- `[{{ issue.severity }}]` `{{ issue.issue_code }}`{% if issue.feature_id is not none %} feature `{{ issue.feature_id }}`{% endif %}: {{ issue.message }}
-  Suggested fix: {{ issue.suggested_fix or "Review and remediate this finding." }}
+- `[{{ issue.severity | title }}]` `{{ issue.issue_code.replace("_", " ").title() }}`{% if issue.feature_id is not none %} for record `{{ issue.feature_id }}`{% endif %}: {{ issue.message }}
+  Suggested action: {{ issue.suggested_fix or "Review and remediate this finding." }}
 {% else %}
 - No issues detected.
 {% endfor %}
@@ -55,8 +55,8 @@ The most important finding is a small set of low-severity completeness or cleanu
 - Preserves feature-level IDs when available, making findings easier to trace back to source records.
 - Writes machine-readable artifacts for audit, triage, and follow-up workflows.
 
-## Artifacts
+## Output Files
 
 {% for key, value in result.artifact_paths.items() %}
-- {{ key }}: `{{ value }}`
+- {{ key.replace("_", " ").title() }}: `{{ value }}`
 {% endfor %}
