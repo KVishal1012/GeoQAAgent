@@ -18,6 +18,12 @@ CHECK_MENTION_MAP = {
     "geometry": "geometry_checks",
     "polygon overlap": "geometry_checks",
 }
+TOOL_REFERENCE_MAP = {
+    "comparison": {"load_comparison", "generate_comparison"},
+    "playbook": {"retrieve_fix_playbooks"},
+    "handoff bundle": {"export_handoff_bundle"},
+    "remediation plan": {"generate_fix_plan"},
+}
 
 
 @dataclass(slots=True)
@@ -36,6 +42,7 @@ def check_report_consistency(
     summary: dict[str, Any],
     issues: list[dict[str, Any]],
     run_record: dict[str, Any],
+    agent_trace: list[dict[str, Any]] | None = None,
 ) -> ReportConsistencyResult:
     errors: list[str] = []
     warnings: list[str] = []
@@ -101,6 +108,16 @@ def check_report_consistency(
         if phrase in lowered_report and check_name not in enabled_checks:
             errors.append(f"Report mentions '{phrase}' but {check_name} was not run.")
     checked_claims.append({"type": "enabled_checks", "values": sorted(enabled_checks)})
+
+    if agent_trace:
+        agent_tool_names = {str(item.get("name")) for item in agent_trace if item.get("name")}
+        checked_claims.append({"type": "agent_tools", "values": sorted(agent_tool_names)})
+        for phrase, required_tools in TOOL_REFERENCE_MAP.items():
+            if phrase in lowered_report and not agent_tool_names.intersection(required_tools):
+                errors.append(f"Report references '{phrase}' but the matching agent tool was not executed.")
+        referenced_tool_names = set(re.findall(r"`(load_[a-z_]+|generate_[a-z_]+|export_[a-z_]+)`", report_text))
+        for tool_name in sorted(referenced_tool_names - agent_tool_names):
+            errors.append(f"Report references tool '{tool_name}' but that tool was not executed.")
 
     if not issues and "finding" in lowered_report:
         warnings.append("Report mentions findings even though issues.csv is empty.")
@@ -236,7 +253,7 @@ def _validate_no_findings_claim(text: str, issues: list[dict[str, Any]], errors:
 
 def _extract_referenced_feature_ids(text: str) -> set[str]:
     feature_ids: set[str] = set()
-    for match in re.finditer(r"\bfeature\s+`([^`]+)`", text, flags=re.IGNORECASE):
+    for match in re.finditer(r"\b(?:feature|record)\s+`([^`]+)`", text, flags=re.IGNORECASE):
         feature_ids.add(match.group(1))
     return feature_ids
 

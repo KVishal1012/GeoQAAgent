@@ -23,6 +23,8 @@ class AppConfig:
     openai_timeout_seconds: float
     openai_max_retries: int
     openai_retry_backoff_seconds: float
+    agent_max_steps: int
+    agent_output_token_budget: int
     env_file: str | None = None
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -66,6 +68,18 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
         default=1.0,
         minimum=0.0,
     )
+    agent_max_steps = _parse_int(
+        env_values.get("GEOQA_AGENT_MAX_STEPS"),
+        name="GEOQA_AGENT_MAX_STEPS",
+        default=6,
+        minimum=1,
+    )
+    agent_output_token_budget = _parse_int(
+        env_values.get("GEOQA_AGENT_OUTPUT_TOKEN_BUDGET"),
+        name="GEOQA_AGENT_OUTPUT_TOKEN_BUDGET",
+        default=1600,
+        minimum=100,
+    )
     return AppConfig(
         openai_api_key=env_values.get("OPENAI_API_KEY"),
         llm_model=env_values.get("GEOQA_LLM_MODEL"),
@@ -74,6 +88,8 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
         openai_timeout_seconds=openai_timeout_seconds,
         openai_max_retries=openai_max_retries,
         openai_retry_backoff_seconds=openai_retry_backoff_seconds,
+        agent_max_steps=agent_max_steps,
+        agent_output_token_budget=agent_output_token_budget,
         env_file=str(resolved_env) if resolved_env else None,
     )
 
@@ -93,6 +109,8 @@ def diagnose_config(config: AppConfig) -> dict[str, Any]:
             "openai_api_key_configured": bool(config.openai_api_key),
             "llm_model_configured": bool(config.llm_model),
             "output_root": config.output_root,
+            "agent_max_steps": config.agent_max_steps,
+            "agent_output_token_budget": config.agent_output_token_budget,
         },
         "issues": issues,
     }

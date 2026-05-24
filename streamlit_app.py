@@ -28,7 +28,17 @@ from geoqa.workflows import (
 
 
 DEFAULT_PAGE_SIZE = 25
-
+AGENT_TASK_OPTIONS = ["report", "fix_plan", "handoff"]
+TASK_PROMPT_OPTIONS = {
+    "report": ["technical_report_v2", "executive_summary_v2", "technical_report_v1", "executive_summary_v1"],
+    "fix_plan": ["fix_recommendation_v2", "fix_recommendation_v1"],
+    "handoff": ["handoff_summary_v1", "technical_report_v2"],
+}
+PROMPT_ALIASES = {
+    "technical_report_v1": "technical_report_v2",
+    "executive_summary_v1": "executive_summary_v2",
+    "fix_recommendation_v1": "fix_recommendation_v2",
+}
 DISPLAY_LABELS = {
     "run_id": "Run ID",
     "dataset_name": "Dataset",
@@ -47,10 +57,13 @@ DISPLAY_LABELS = {
     "feature_id": "Record ID",
     "suggested_fix": "Suggested Action",
     "context": "Evidence",
-    "column": "Column",
+    "column": "Data Field",
     "report_path": "Report File",
     "summary_path": "Summary File",
     "generated_at": "Generated At",
+    "name": "Tool",
+    "reason": "Why It Was Used",
+    "tool_count": "Tool Steps",
 }
 
 
@@ -69,13 +82,18 @@ def run_uploaded_dataset(
     )
 
 
-def build_static_demo_report(result: QAResult, prompt_name: str = "technical_report_v1") -> str:
+def build_static_demo_report(
+    result: QAResult,
+    prompt_name: str = "technical_report_v2",
+    task: str = "report",
+) -> str:
     dataset = result.summary.get("dataset", {})
     readiness = result.summary.get("readiness", {})
     issue_counts = result.issue_counts
     geometry_types = ", ".join(dataset.get("geometry_types", [])) or "unknown"
+    prompt_name = PROMPT_ALIASES.get(prompt_name, prompt_name)
 
-    if prompt_name == "executive_summary_v1":
+    if prompt_name == "executive_summary_v2":
         return "\n".join(
             [
                 "## Executive Summary",
@@ -97,14 +115,36 @@ def build_static_demo_report(result: QAResult, prompt_name: str = "technical_rep
             ]
         )
 
-    if prompt_name == "fix_recommendation_v1":
-        lines = ["## Fix Recommendations", ""]
+    if prompt_name == "fix_recommendation_v2" or task == "fix_plan":
+        lines = ["# GeoQA Remediation Plan Draft", "", "## Recommended Actions", ""]
         if result.issues:
             for issue in result.issues:
                 lines.append(f"- `{_humanize_issue_code(issue.issue_code)}`: {issue.suggested_fix}")
         else:
             lines.append("- No fixes are recommended because the deterministic checks found no issues.")
         return "\n".join(lines)
+
+    if prompt_name == "handoff_summary_v1" or task == "handoff":
+        return "\n".join(
+            [
+                "# GeoQA Handoff Summary Draft",
+                "",
+                "## Analyst Summary",
+                "",
+                (
+                    f"This handoff covers `{dataset.get('filename', 'dataset')}` with "
+                    f"{dataset.get('feature_count', 0)} features and a readiness classification of `{readiness.get('band', 'unknown')}`."
+                ),
+                "",
+                "## Included Evidence",
+                "",
+                "- Deterministic QA report",
+                "- Issue spreadsheet",
+                "- Run summary and run record",
+                "- Review workflow artifacts",
+                "- Remediation guidance when available",
+            ]
+        )
 
     lines = [
         "# GeoQA Agent-Assisted Report Draft",
@@ -141,20 +181,26 @@ def build_static_demo_report(result: QAResult, prompt_name: str = "technical_rep
     return "\n".join(lines)
 
 
-def generate_agent_draft(
+def run_agent_session(
     result: QAResult,
+    *,
+    task: str = "report",
     model: str | None = None,
     playbook_dir: str | None = None,
-    prompt_name: str = "technical_report_v1",
+    prompt_name: str | None = None,
     use_static_demo: bool = False,
     runtime_config: dict[str, Any] | None = None,
     app_config: AppConfig | None = None,
-):
+    max_steps: int | None = None,
+    comparison_key: str | None = None,
+) -> dict[str, str]:
     if app_config is not None and not app_config.agent_report_enabled:
         raise RuntimeError("Agent reports are disabled by GEOQA_AGENT_REPORT_ENABLED=0.")
 
+    selected_prompt = prompt_name or TASK_PROMPT_OPTIONS[task][0]
+    normalized_prompt = PROMPT_ALIASES.get(selected_prompt, selected_prompt)
     if use_static_demo:
-        gateway = StaticLLMGateway(build_static_demo_report(result, prompt_name=prompt_name))
+        gateway = StaticLLMGateway(build_static_demo_report(result, prompt_name=normalized_prompt, task=task))
     else:
         effective_config = app_config or load_app_config()
         gateway = build_openai_gateway(effective_config, default_model=model or effective_config.llm_model)
@@ -164,8 +210,32 @@ def generate_agent_draft(
         gateway=gateway,
         model=model,
         playbook_dir=playbook_dir,
-        prompt_name=prompt_name,
+        prompt_name=normalized_prompt,
+        task=task,
+        max_steps=max_steps,
+        comparison_key=comparison_key,
         runtime_config=runtime_config or (app_config.to_safe_dict() if app_config else {}),
+    )
+
+
+def generate_agent_draft(
+    result: QAResult,
+    model: str | None = None,
+    playbook_dir: str | None = None,
+    prompt_name: str = "technical_report_v1",
+    use_static_demo: bool = False,
+    runtime_config: dict[str, Any] | None = None,
+    app_config: AppConfig | None = None,
+):
+    return run_agent_session(
+        result,
+        task="report",
+        model=model,
+        playbook_dir=playbook_dir,
+        prompt_name=prompt_name,
+        use_static_demo=use_static_demo,
+        runtime_config=runtime_config,
+        app_config=app_config,
     )
 
 
@@ -255,6 +325,25 @@ def load_issue_rows_page(
     }
 
 
+def load_result_from_output_dir(output_dir: str) -> QAResult:
+    from geoqa.models import Issue, RunRecord
+
+    output_path = Path(output_dir)
+    run_record_payload = _read_json_if_exists(output_path / "run_record.json") or {}
+    summary_payload = _read_json_if_exists(output_path / "summary.json") or {}
+    issue_payloads = _read_issues_csv(output_path / "issues.csv")
+    issues = [Issue(**payload) for payload in issue_payloads]
+    run_record = RunRecord(**run_record_payload)
+    artifact_paths = {
+        "output_dir": str(output_path),
+        "report": str(output_path / "qa_report.md"),
+        "issues_csv": str(output_path / "issues.csv"),
+        "run_record": str(output_path / "run_record.json"),
+        "summary": str(output_path / "summary.json"),
+    }
+    return QAResult(run_record=run_record, issues=issues, summary=summary_payload, artifact_paths=artifact_paths)
+
+
 def load_run_artifacts(output_dir: str, comparison_key: str | None = None) -> dict[str, Any]:
     output_path = Path(output_dir)
     payload: dict[str, Any] = {
@@ -266,6 +355,11 @@ def load_run_artifacts(output_dir: str, comparison_key: str | None = None) -> di
         "qa_report": _read_text_if_exists(output_path / "qa_report.md"),
         "agent_report_draft": _read_text_if_exists(output_path / "agent_report_draft.md"),
         "agent_report": _read_text_if_exists(output_path / "agent_report.md"),
+        "agent_report_json": _read_json_if_exists(output_path / "agent_report.json"),
+        "agent_session": _read_json_if_exists(output_path / "agent_session.json"),
+        "agent_trace": _read_json_if_exists(output_path / "agent_trace.json"),
+        "report_consistency": _read_json_if_exists(output_path / "report_consistency.json"),
+        "hallucination_check": _read_json_if_exists(output_path / "hallucination_check.json"),
         "fix_plan_markdown": _read_text_if_exists(output_path / "fix_plan.md"),
         "bundle_manifest": _read_json_if_exists(output_path / "bundle_manifest.json"),
         "comparison_index": load_comparison_index(output_path),
@@ -290,11 +384,17 @@ def render_app() -> None:  # pragma: no cover - visual shell
             st.warning("\n".join(diagnostics["issues"]))
         else:
             st.success("Runtime configuration looks healthy.")
+        st.caption(f"Agent max steps: {config.agent_max_steps}")
+        st.caption(f"Agent output token budget: {config.agent_output_token_budget}")
 
     st.subheader("Recent Runs")
     recent_runs = load_recent_runs(output_root)
     if recent_runs:
         st.dataframe(format_recent_runs_for_display(recent_runs), use_container_width=True)
+        recent_options = [""] + [run.get("output_dir", "") for run in recent_runs if run.get("output_dir")]
+        selected_recent = st.selectbox("Open a recent run", recent_options, format_func=lambda value: value or "Choose a recent run")
+        if selected_recent:
+            st.session_state["geoqa_output_dir"] = selected_recent
     else:
         st.info("No runs found yet.")
 
@@ -303,10 +403,13 @@ def render_app() -> None:  # pragma: no cover - visual shell
     required_columns = st.text_input("Required columns (comma separated)", value="asset_id")
     target_crs = st.text_input("Target CRS", value="")
     use_static_demo = st.checkbox("Static demo mode", value=not config.openai_api_key)
+    run_agent_after_qa = st.checkbox("Run agent after QA", value=True)
+    default_task = st.selectbox("Agent task", AGENT_TASK_OPTIONS, format_func=_humanize_status)
     prompt_name = st.selectbox(
         "Agent prompt",
-        ["technical_report_v1", "executive_summary_v1", "fix_recommendation_v1"],
+        TASK_PROMPT_OPTIONS[default_task],
         index=0,
+        format_func=_humanize_prompt_name,
     )
     if st.button("Run QA"):
         if not input_path.strip():
@@ -320,16 +423,18 @@ def render_app() -> None:  # pragma: no cover - visual shell
             )
             st.session_state["geoqa_output_dir"] = result.artifact_paths["output_dir"]
             st.success(f"Run complete: {result.artifact_paths['output_dir']}")
-            if st.checkbox("Generate agent draft immediately", value=True, key="generate_draft_after_run"):
-                generate_agent_draft(
+            if run_agent_after_qa:
+                run_agent_session(
                     result,
+                    task=default_task,
                     playbook_dir=None,
                     prompt_name=prompt_name,
                     use_static_demo=use_static_demo,
                     app_config=config,
                     runtime_config=config.to_safe_dict(),
+                    max_steps=config.agent_max_steps,
                 )
-                st.success("Agent draft generated.")
+                st.success("Agent session completed.")
 
     st.subheader("Open Existing Run")
     existing_output_dir = st.text_input("Existing output directory", value=st.session_state.get("geoqa_output_dir", ""))
@@ -344,9 +449,58 @@ def render_app() -> None:  # pragma: no cover - visual shell
     st.subheader("Current Run")
     st.write(format_run_overview_for_display(selected_output_dir, artifacts))
 
+    st.markdown("### Run Agent")
+    agent_task = st.selectbox("Task", AGENT_TASK_OPTIONS, key="agent_task_selector", format_func=_humanize_status)
+    agent_prompt = st.selectbox(
+        "Prompt",
+        TASK_PROMPT_OPTIONS[agent_task],
+        key="agent_prompt_selector",
+        format_func=_humanize_prompt_name,
+    )
+    playbook_dir = st.text_input("Custom playbook directory", value="")
+    comparison_key = None
+    if artifacts.get("comparison_index"):
+        comparison_options = [""] + [item["comparison_key"] for item in artifacts["comparison_index"]]
+        comparison_key = st.selectbox("Comparison for agent or handoff", comparison_options, format_func=lambda value: value if value else "None selected")
+    agent_max_steps = st.number_input("Max tool steps", min_value=1, max_value=20, value=int(config.agent_max_steps), step=1)
+
+    if st.button("Run Agent"):
+        qa_result = load_result_from_output_dir(selected_output_dir)
+        run_agent_session(
+            qa_result,
+            task=agent_task,
+            playbook_dir=playbook_dir or None,
+            prompt_name=agent_prompt,
+            use_static_demo=use_static_demo,
+            app_config=config,
+            runtime_config=config.to_safe_dict(),
+            max_steps=int(agent_max_steps),
+            comparison_key=comparison_key or None,
+        )
+        st.success("Agent session completed.")
+        artifacts = load_run_artifacts(selected_output_dir, comparison_key=comparison_key or None)
+
+    session_payload = artifacts.get("agent_session") or {}
+    trace_payload = artifacts.get("agent_trace") or {}
+    review_payload = artifacts.get("review_status") or {}
+    if session_payload:
+        st.markdown("### Agent Session")
+        st.write(format_agent_session_for_display(session_payload))
+    if trace_payload:
+        st.markdown("### Agent Trace")
+        trace_rows = format_agent_trace_for_display(trace_payload)
+        if trace_rows:
+            st.dataframe(trace_rows, use_container_width=True)
+    if artifacts.get("report_consistency") or artifacts.get("hallucination_check"):
+        st.markdown("### Validation")
+        st.write(format_validation_for_display(artifacts))
+    if review_payload:
+        st.markdown("### Review Status")
+        st.write(format_review_status_for_display(review_payload))
+
     st.markdown("### Issue Triage")
     filters = artifacts["issue_filters"]
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         severity = st.selectbox("Severity", [""] + list(filters["severity_counts"].keys()), key="severity_filter", format_func=lambda value: _humanize_status(value) if value else "All")
     with col2:
@@ -354,7 +508,9 @@ def render_app() -> None:  # pragma: no cover - visual shell
     with col3:
         feature_id = st.selectbox("Record ID", [""] + filters["feature_ids"], key="feature_id_filter", format_func=lambda value: value if value else "All")
     with col4:
-        column = st.selectbox("Column", [""] + filters["columns"], key="column_filter", format_func=lambda value: value if value else "All")
+        column = st.selectbox("Data field", [""] + filters["columns"], key="column_filter", format_func=lambda value: value if value else "All")
+    with col5:
+        page_number = st.number_input("Page", min_value=1, value=1, step=1)
 
     page = load_issue_rows_page(
         selected_output_dir,
@@ -363,13 +519,12 @@ def render_app() -> None:  # pragma: no cover - visual shell
         feature_id=feature_id or None,
         column=column or None,
         limit=DEFAULT_PAGE_SIZE,
-        offset=0,
+        offset=(int(page_number) - 1) * DEFAULT_PAGE_SIZE,
     )
     st.caption(f"Showing {len(page['rows'])} of {page['total_rows']} filtered rows")
     st.dataframe(format_issue_rows_for_display(page["rows"]), use_container_width=True)
 
     st.markdown("### Remediation")
-    playbook_dir = st.text_input("Custom playbook directory", value="")
     if st.button("Generate Fix Plan"):
         generate_fix_plan(selected_output_dir, playbook_dir=playbook_dir or None)
         st.success("Fix plan generated.")
@@ -403,14 +558,14 @@ def render_app() -> None:  # pragma: no cover - visual shell
             artifacts = load_run_artifacts(selected_output_dir)
 
     st.markdown("### Handoff")
-    comparison_key = None
+    handoff_comparison_key = None
     if artifacts.get("comparison_index"):
-        comparison_options = [item["comparison_key"] for item in artifacts["comparison_index"]]
-        comparison_key = st.selectbox("Comparison to include", [""] + comparison_options, format_func=lambda value: value if value else "Latest comparison")
+        handoff_options = [""] + [item["comparison_key"] for item in artifacts["comparison_index"]]
+        handoff_comparison_key = st.selectbox("Comparison to include in bundle", handoff_options, format_func=lambda value: value if value else "Latest comparison")
     if st.button("Export Handoff Bundle"):
-        bundle = export_handoff(selected_output_dir, comparison_key=comparison_key or None)
+        bundle = export_handoff(selected_output_dir, comparison_key=handoff_comparison_key or None)
         st.success(f"Bundle created: {bundle['handoff_bundle']}")
-        artifacts = load_run_artifacts(selected_output_dir, comparison_key=comparison_key or None)
+        artifacts = load_run_artifacts(selected_output_dir, comparison_key=handoff_comparison_key or None)
 
 
 def format_recent_runs_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -422,7 +577,7 @@ def format_recent_runs_for_display(rows: list[dict[str, Any]]) -> list[dict[str,
                 "Run ID": row.get("run_id"),
                 "Dataset": row.get("dataset_name"),
                 "Completed At": row.get("finished_at") or row.get("started_at"),
-                "Readiness": row.get("readiness_band"),
+                "Readiness": _humanize_status(row.get("readiness_band")),
                 "Readiness Score": row.get("readiness_score"),
                 "Review Status": _humanize_status(row.get("review_status")),
                 "High Issues": issue_counts.get("high", 0),
@@ -439,15 +594,19 @@ def format_run_overview_for_display(output_dir: str, artifacts: dict[str, Any]) 
     summary = artifacts.get("summary") or {}
     dataset = summary.get("dataset") or {}
     readiness = summary.get("readiness") or {}
+    session = artifacts.get("agent_session") or {}
     return {
         "Output Folder": output_dir,
         "Dataset": dataset.get("filename"),
         "Feature Count": dataset.get("feature_count"),
         "Geometry Type": ", ".join(dataset.get("geometry_types", [])) if dataset.get("geometry_types") else None,
         "Coordinate System": dataset.get("crs"),
-        "Readiness": readiness.get("band"),
+        "Readiness": _humanize_status(readiness.get("band")),
         "Readiness Score": readiness.get("score"),
         "Review Status": _humanize_status((artifacts.get("review_status") or {}).get("status")),
+        "Agent Task": _humanize_status(session.get("task")),
+        "Agent Session Status": _humanize_status(session.get("status")),
+        "Tool Steps": session.get("step_count"),
         "Total Findings": (artifacts.get("issue_filters") or {}).get("total_rows", 0),
     }
 
@@ -482,6 +641,59 @@ def format_comparisons_for_display(rows: list[dict[str, Any]]) -> list[dict[str,
     ]
 
 
+def format_agent_session_for_display(session: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "Task": _humanize_status(session.get("task")),
+        "Status": _humanize_status(session.get("status")),
+        "Provider": session.get("provider"),
+        "Model": session.get("model"),
+        "Prompt": _humanize_prompt_name(session.get("prompt_name")),
+        "Planning Mode": _humanize_status(session.get("planning_mode")),
+        "Tool Steps": session.get("step_count"),
+        "Started At": session.get("started_at"),
+        "Finished At": session.get("finished_at"),
+    }
+
+
+def format_agent_trace_for_display(trace: dict[str, Any]) -> list[dict[str, Any]]:
+    calls = trace.get("tool_calls") or []
+    rows: list[dict[str, Any]] = []
+    for index, call in enumerate(calls, start=1):
+        output_summary = call.get("output_summary") or {}
+        rows.append(
+            {
+                "Step": index,
+                "Tool": _humanize_tool_name(call.get("name")),
+                "Why It Was Used": call.get("reason"),
+                "Evidence Returned": _summarize_tool_output(output_summary),
+            }
+        )
+    return rows
+
+
+def format_validation_for_display(artifacts: dict[str, Any]) -> dict[str, Any]:
+    consistency = artifacts.get("report_consistency") or {}
+    hallucination = artifacts.get("hallucination_check") or {}
+    return {
+        "Consistency Check": "Passed" if consistency.get("passed") else "Blocked",
+        "Consistency Issues": len(consistency.get("blocking_errors") or []),
+        "Grounding Check": "Passed" if hallucination.get("passed") else "Blocked",
+        "Grounding Issues": len(hallucination.get("blocking_errors") or []),
+        "Warnings": len((consistency.get("warnings") or [])) + len((hallucination.get("warnings") or [])),
+    }
+
+
+def format_review_status_for_display(review_status: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "Status": _humanize_status(review_status.get("status")),
+        "Reviewer": review_status.get("reviewer_name"),
+        "Reviewed At": review_status.get("reviewed_at"),
+        "Notes": review_status.get("notes"),
+        "Blocking Issues": len(review_status.get("blocking_errors") or []),
+        "Warnings": len(review_status.get("warnings") or []),
+    }
+
+
 def _humanize_issue_code(value: Any) -> str:
     if not value:
         return ""
@@ -489,6 +701,18 @@ def _humanize_issue_code(value: Any) -> str:
 
 
 def _humanize_status(value: Any) -> str:
+    if not value:
+        return ""
+    return str(value).replace("_", " ").title()
+
+
+def _humanize_prompt_name(value: Any) -> str:
+    if not value:
+        return ""
+    return str(value).replace("_", " ").title()
+
+
+def _humanize_tool_name(value: Any) -> str:
     if not value:
         return ""
     return str(value).replace("_", " ").title()
@@ -504,6 +728,28 @@ def _format_context_for_display(context: Any) -> str:
             parts.append(f"{label}: {value}")
         return "; ".join(parts)
     return str(context)
+
+
+def _summarize_tool_output(output_summary: Any) -> str:
+    if not isinstance(output_summary, dict):
+        return str(output_summary)
+    chunks: list[str] = []
+    for key, value in output_summary.items():
+        label = DISPLAY_LABELS.get(str(key), str(key).replace("_", " ").title())
+        if isinstance(value, dict) and "count" in value:
+            chunks.append(f"{label}: {value['count']} items")
+        elif isinstance(value, dict):
+            if "issue_count" in value:
+                chunks.append(f"{label}: {value['issue_count']} issues")
+            elif "total_rows" in value:
+                chunks.append(f"{label}: {value['total_rows']} rows")
+            elif "artifacts" in value:
+                chunks.append(f"{label}: artifact bundle updated")
+            else:
+                chunks.append(f"{label}: available")
+        else:
+            chunks.append(f"{label}: {value}")
+    return "; ".join(chunks)
 
 
 def _read_issues_csv(path: Path) -> list[dict[str, Any]]:

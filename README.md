@@ -271,6 +271,58 @@ python app.py --review-output-dir demo/output --export-handoff-bundle
 - `bundle_manifest.json`
 - `handoff_bundle.zip`
 
+## V4 real OpenAI agent runtime
+
+V4 upgrades GeoQA from draft generation into a real OpenAI-backed, tool-using analyst agent.
+
+V4 adds:
+
+- a bounded agent session runtime for `report`, `fix_plan`, and `handoff` tasks
+- an internal GeoQA-only tool surface for evidence loading, issue paging, comparisons, remediation, and handoff export
+- `agent_session.json` for session metadata and runtime state
+- `agent_trace.json` for ordered tool calls and prompt context
+- a first-class `Run Agent` workflow in Streamlit
+- backward-compatible `--agent-report` support routed through the new `report` agent task
+
+### V4 agent CLI flow
+
+```bash
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/agent_report_draft.md --approve-agent-report --reviewer-name "Demo Reviewer"
+```
+
+You can also run the new tasks against an existing reviewed run:
+
+```bash
+python app.py --review-output-dir demo/output --agent-run --agent-task fix_plan --llm-provider static --static-report-file demo/output/agent_report_draft.md
+python app.py --review-output-dir demo/output --export-handoff-bundle
+```
+
+### V4 agent artifacts
+
+- `agent_session.json`
+- `agent_trace.json`
+- `agent_report_draft.md`
+- `agent_report.json`
+- `report_consistency.json`
+- `hallucination_check.json`
+- `review_status.json`
+- `review_history.jsonl`
+- `agent_report.md` only after approval
+
+### V4 Streamlit flow
+
+```bash
+streamlit run streamlit_app.py
+```
+
+The Streamlit console now lets analysts:
+
+- run deterministic QA
+- run the agent for `report`, `fix_plan`, or `handoff`
+- inspect session status, tool trace, and validation results
+- review drafts and finalize approved reports
+- compare runs, generate remediation, and export handoff bundles
+
 ## Checks in v1
 
 - CRS presence and coordinate plausibility

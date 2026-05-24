@@ -24,14 +24,15 @@ def monitor_report_grounding(
     issues: list[dict[str, Any]],
     run_record: dict[str, Any],
     playbooks: list[dict[str, Any]] | None = None,
+    agent_trace: list[dict[str, Any]] | None = None,
 ) -> HallucinationCheckResult:
-    consistency = check_report_consistency(report_text, summary, issues, run_record)
+    consistency = check_report_consistency(report_text, summary, issues, run_record, agent_trace=agent_trace)
     blocking_errors = list(consistency.blocking_errors)
     warnings = list(consistency.warnings)
     checked_claims = list(consistency.checked_claims)
     issue_codes = {str(issue.get("issue_code", "")) for issue in issues if issue.get("issue_code")}
 
-    evidence_terms = _build_evidence_terms(summary, issues, run_record, playbooks or [])
+    evidence_terms = _build_evidence_terms(summary, issues, run_record, playbooks or [], agent_trace or [])
     for sentence in _split_sentences(report_text):
         if not sentence.strip():
             continue
@@ -56,6 +57,7 @@ def _build_evidence_terms(
     issues: list[dict[str, Any]],
     run_record: dict[str, Any],
     playbooks: list[dict[str, Any]],
+    agent_trace: list[dict[str, Any]],
 ) -> set[str]:
     terms = {
         str(summary.get("dataset", {}).get("filename", "")),
@@ -71,10 +73,14 @@ def _build_evidence_terms(
     terms.update(str(value) for value in run_record.get("geometry_types", []))
     terms.update(str(value) for value in run_record.get("enabled_checks", []))
     for issue in issues:
-        terms.update(str(issue.get(key, "")) for key in ("issue_code", "check_name", "severity", "message", "suggested_fix"))
+        terms.update(str(issue.get(key, "")) for key in ("issue_code", "check_name", "severity", "message", "suggested_fix", "feature_id"))
     for playbook in playbooks:
         terms.add(str(playbook.get("title", "")))
         terms.add(str(playbook.get("source", "")))
+    for call in agent_trace:
+        terms.add(str(call.get("name", "")))
+        for value in (call.get("reason", ""),):
+            terms.add(str(value))
     return {term for term in terms if term and term != "None"}
 
 
@@ -90,6 +96,7 @@ def _looks_like_claim(sentence: str) -> bool:
         for marker in (
             "dataset",
             "feature",
+            "record",
             "geometry",
             "crs",
             "readiness",
@@ -99,6 +106,9 @@ def _looks_like_claim(sentence: str) -> bool:
             "sql server",
             "routing",
             "network analysis",
+            "comparison",
+            "handoff",
+            "remediation",
         )
     )
 
