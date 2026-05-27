@@ -1,0 +1,2 @@
+{"action": "draft_ready", "timestamp": "2026-05-27T23:15:00.587538+00:00", "reviewer_name": null, "notes": null, "draft_path": "demo/output/geoqa-fa58aec23a57/agent_report_draft.md", "final_path": null, "blocking_errors": [], "warnings": []}
+{"action": "approved", "timestamp": "2026-05-27T23:15:00.619620+00:00", "reviewer_name": "Demo Reviewer", "notes": null, "draft_path": "demo/output/geoqa-fa58aec23a57/agent_report_draft.md", "final_path": "demo/output/geoqa-fa58aec23a57/agent_report.md", "blocking_errors": [], "warnings": []}

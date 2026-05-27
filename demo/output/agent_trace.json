@@ -1,0 +1,237 @@
+{
+  "task": "report",
+  "planning_mode": "fallback",
+  "planner_prompt": "You are the GeoQA V4 planner for the task `report`.\n\nUse only the tools listed below.\n\nAvailable tools JSON:\n[\n  \"load_run_evidence\",\n  \"load_issue_summary\",\n  \"load_issue_rows_page\",\n  \"retrieve_fix_playbooks\"\n]\n\nGrounding context:\n{\n  \"issue_summary\": {\n    \"issue_count\": 4\n  },\n  \"run_record\": {\n    \"crs\": \"EPSG:4326\",\n    \"duration_seconds\": null,\n    \"enabled_checks\": [\n      \"crs_checks\",\n      \"geometry_checks\",\n      \"schema_checks\",\n      \"sqlserver_checks\",\n      \"linear_reference_checks\"\n    ],\n    \"error\": null,\n    \"feature_count\": 50,\n    \"filename\": \"centreline_intersections_sample.zip\",\n    \"finished_at\": null,\n    \"geometry_types\": [\n      \"MultiPoint\"\n    ],\n    \"input_path\": \"/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/demo/input/centreline_intersections_sample.zip\",\n    \"issue_counts\": {\n      \"high\": 0,\n      \"low\": 3,\n      \"medium\": 1,\n      \"total\": 4\n    },\n    \"normalization_notes\": [\n      \"Feature IDs copied from source column '_id1'.\",\n      \"CRS retained as EPSG:4326.\",\n      \"No geometry normalization changes were required.\",\n      \"Precision normalization skipped.\"\n    ],\n    \"readiness_band\": \"needs_review\",\n    \"readiness_score\": 87,\n    \"run_id\": \"geoqa-fa58aec23a57\",\n    \"started_at\": \"2026-05-27T23:15:00.149631+00:00\",\n    \"status\": \"completed\"\n  },\n  \"summary\": {\n    \"dataset\": {\n      \"columns\": [\n        \"_id1\",\n        \"INTERSE2\",\n        \"DATE_EF3\",\n        \"DATE_EX4\",\n        \"ELEVATI5\",\n        \"INTERSE6\",\n        \"CLASSIF7\",\n        \"CLASSIF8\",\n        \"NUMBER_9\",\n        \"ELEVATI10\",\n        \"ELEVATI11\",\n        \"ELEVATI12\",\n        \"ELEVATI13\",\n        \"ELEVATI14\",\n        \"HEIGHT_15\",\n        \"HEIGHT_16\",\n        \"STATE17\",\n        \"TRANS_I18\",\n        \"TRANS_I19\",\n        \"OBJECTI20\",\n        \"geometry\"\n      ],\n      \"crs\": \"EPSG:4326\",\n      \"feature_count\": 50,\n      \"filename\": \"centreline_intersections_sample.zip\",\n      \"geometry_types\": [\n        \"MultiPoint\"\n      ]\n    },\n    \"readiness\": {\n      \"band\": \"needs_review\",\n      \"penalties\": {\n        \"high\": 0,\n        \"low\": 3,\n        \"medium\": 1\n      },\n      \"score\": 87\n    }\n  }\n}\n\nReturn JSON only in this exact shape:\n{\n  \"steps\": [\n    {\"tool\": \"tool_name\", \"reason\": \"why this tool is needed\"}\n  ]\n}\n\nRules:\n- Use only listed tools.\n- Prefer the minimum number of tools needed.\n- Do not invent tools.\n- Do not write any prose outside the JSON object.\n",
+  "planner_raw": {
+    "prompt_length": 2415,
+    "report_path": "demo/output/static_v4_report.md"
+  },
+  "tool_calls": [
+    {
+      "name": "load_run_evidence",
+      "reason": "Load deterministic run evidence.",
+      "input_payload": {
+        "output_dir": "demo/output/geoqa-fa58aec23a57",
+        "playbook_dir": null,
+        "comparison_key": null,
+        "base_run_dir": null
+      },
+      "output_summary": {
+        "summary": {
+          "dataset": {
+            "filename": "centreline_intersections_sample.zip",
+            "feature_count": 50,
+            "geometry_types": [
+              "MultiPoint"
+            ],
+            "crs": "EPSG:4326",
+            "columns": [
+              "_id1",
+              "INTERSE2",
+              "DATE_EF3",
+              "DATE_EX4",
+              "ELEVATI5",
+              "INTERSE6",
+              "CLASSIF7",
+              "CLASSIF8",
+              "NUMBER_9",
+              "ELEVATI10",
+              "ELEVATI11",
+              "ELEVATI12",
+              "ELEVATI13",
+              "ELEVATI14",
+              "HEIGHT_15",
+              "HEIGHT_16",
+              "STATE17",
+              "TRANS_I18",
+              "TRANS_I19",
+              "OBJECTI20",
+              "geometry"
+            ]
+          },
+          "readiness": {
+            "score": 87,
+            "band": "needs_review",
+            "penalties": {
+              "low": 3,
+              "medium": 1,
+              "high": 0
+            }
+          }
+        },
+        "run_record": {
+          "run_id": "geoqa-fa58aec23a57",
+          "input_path": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/demo/input/centreline_intersections_sample.zip",
+          "started_at": "2026-05-27T23:15:00.149631+00:00",
+          "finished_at": null,
+          "duration_seconds": null,
+          "status": "completed",
+          "filename": "centreline_intersections_sample.zip",
+          "feature_count": 50,
+          "geometry_types": [
+            "MultiPoint"
+          ],
+          "crs": "EPSG:4326",
+          "enabled_checks": [
+            "crs_checks",
+            "geometry_checks",
+            "schema_checks",
+            "sqlserver_checks",
+            "linear_reference_checks"
+          ],
+          "normalization_notes": [
+            "Feature IDs copied from source column '_id1'.",
+            "CRS retained as EPSG:4326.",
+            "No geometry normalization changes were required.",
+            "Precision normalization skipped."
+          ],
+          "readiness_score": 87,
+          "readiness_band": "needs_review",
+          "issue_counts": {
+            "low": 3,
+            "medium": 1,
+            "high": 0,
+            "total": 4
+          },
+          "error": null
+        },
+        "issue_count": 4
+      }
+    },
+    {
+      "name": "load_issue_summary",
+      "reason": "Summarize findings by priority and finding type.",
+      "input_payload": {
+        "output_dir": "demo/output/geoqa-fa58aec23a57",
+        "playbook_dir": null,
+        "comparison_key": null,
+        "base_run_dir": null
+      },
+      "output_summary": {
+        "severity_counts": {
+          "high": 0,
+          "medium": 1,
+          "low": 3,
+          "total": 4
+        },
+        "issue_counts_by_code": {
+          "DUPLICATE_GEOMETRY": 1,
+          "NULL_HEAVY_COLUMN": 3
+        },
+        "top_issues": {
+          "count": 4,
+          "preview": [
+            {
+              "issue_code": "DUPLICATE_GEOMETRY",
+              "severity": "medium",
+              "feature_id": "12",
+              "message": "Feature duplicates geometry of feature 11.",
+              "suggested_fix": "Deduplicate repeated spatial features."
+            },
+            {
+              "issue_code": "NULL_HEAVY_COLUMN",
+              "severity": "low",
+              "feature_id": "",
+              "message": "Column 'ELEVATI12' is 98% null.",
+              "suggested_fix": "Review whether sparse fields should be populated or removed."
+            },
+            {
+              "issue_code": "NULL_HEAVY_COLUMN",
+              "severity": "low",
+              "feature_id": "",
+              "message": "Column 'ELEVATI13' is 100% null.",
+              "suggested_fix": "Review whether sparse fields should be populated or removed."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "load_issue_rows_page",
+      "reason": "Inspect a small slice of issue rows for examples.",
+      "input_payload": {
+        "output_dir": "demo/output/geoqa-fa58aec23a57",
+        "playbook_dir": null,
+        "comparison_key": null,
+        "base_run_dir": null
+      },
+      "output_summary": {
+        "total_rows": 4,
+        "offset": 0,
+        "limit": 10,
+        "rows": {
+          "count": 4,
+          "preview": [
+            {
+              "issue_code": "DUPLICATE_GEOMETRY",
+              "check_name": "duplicate_geometry",
+              "severity": "medium",
+              "feature_id": "12",
+              "message": "Feature duplicates geometry of feature 11.",
+              "suggested_fix": "Deduplicate repeated spatial features.",
+              "context": {}
+            },
+            {
+              "issue_code": "NULL_HEAVY_COLUMN",
+              "check_name": "column_completeness",
+              "severity": "low",
+              "feature_id": "",
+              "message": "Column 'ELEVATI12' is 98% null.",
+              "suggested_fix": "Review whether sparse fields should be populated or removed.",
+              "context": {
+                "column": "ELEVATI12",
+                "null_ratio": 0.98
+              }
+            },
+            {
+              "issue_code": "NULL_HEAVY_COLUMN",
+              "check_name": "column_completeness",
+              "severity": "low",
+              "feature_id": "",
+              "message": "Column 'ELEVATI13' is 100% null.",
+              "suggested_fix": "Review whether sparse fields should be populated or removed.",
+              "context": {
+                "column": "ELEVATI13",
+                "null_ratio": 1.0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "retrieve_fix_playbooks",
+      "reason": "Retrieve remediation guidance for the detected findings.",
+      "input_payload": {
+        "output_dir": "demo/output/geoqa-fa58aec23a57",
+        "playbook_dir": null,
+        "comparison_key": null,
+        "base_run_dir": null
+      },
+      "output_summary": {
+        "playbooks": {
+          "count": 2,
+          "preview": [
+            {
+              "source": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/duplicate_geometry_playbook.md",
+              "title": "Duplicate Geometry Playbook",
+              "text": "# Duplicate Geometry Playbook\n\nUse this playbook when GeoQA reports duplicate geometry records.\n\nGrounded guidance:\n- Duplicate geometries can indicate duplicate records, conflated assets, or valid multi-record modeling.\n- For intersection datasets, duplicate point geometries may be valid when multiple records describe the same physical location at different levels or classifications.\n- Review duplicate geometry findings before spatial joins, network analysis, SQL Server loading, or downstream reporting.\n- Do not state that duplicate geometries make a dataset unusable unless the workflow requirements prove that conclusion.\n\n",
+              "issue_codes": [
+                "DUPLICATE_GEOMETRY"
+              ]
+            },
+            {
+              "source": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/geometry_fix_playbook.md",
+              "title": "Geometry And Schema Fix Playbook",
+              "text": "# Geometry And Schema Fix Playbook\n\nUse this playbook for geometry validity, null geometry, mixed geometry, size anomaly, schema, and sparse column findings.\n\nGrounded guidance:\n- Null or empty geometries should be restored from source data or removed before publishing.\n- Invalid geometries should be repaired with a GIS repair workflow and rechecked.\n- Mixed geometry types should be split into separate layers when downstream systems expect one geometry family.\n- Null-heavy columns should be reviewed with the data owner before removal or population.\n- Required schema fields should be added or mapped before downstream use.\n\n",
+              "issue_codes": [
+                "NULL_HEAVY_COLUMN"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "writer_prompt": "Write a grounded GeoQA analyst report for task `report`.\n\nYou may use only:\n- deterministic evidence in the JSON below\n- tool outputs in the trace JSON below\n- retrieved fix playbook text below\n\nRules:\n- Every sentence must be grounded in the evidence or tool trace.\n- Do not claim workflow unsuitability unless the evidence explicitly proves it.\n- Use cautious language for downstream workflow guidance.\n- Use plain-English labels suitable for non-GIS analysts.\n\nDeterministic evidence:\n{\n  \"issues\": [\n    {\n      \"check_name\": \"duplicate_geometry\",\n      \"context\": {},\n      \"feature_id\": \"12\",\n      \"issue_code\": \"DUPLICATE_GEOMETRY\",\n      \"message\": \"Feature duplicates geometry of feature 11.\",\n      \"severity\": \"medium\",\n      \"suggested_fix\": \"Deduplicate repeated spatial features.\"\n    },\n    {\n      \"check_name\": \"column_completeness\",\n      \"context\": {\n        \"column\": \"ELEVATI12\",\n        \"null_ratio\": 0.98\n      },\n      \"feature_id\": \"\",\n      \"issue_code\": \"NULL_HEAVY_COLUMN\",\n      \"message\": \"Column 'ELEVATI12' is 98% null.\",\n      \"severity\": \"low\",\n      \"suggested_fix\": \"Review whether sparse fields should be populated or removed.\"\n    },\n    {\n      \"check_name\": \"column_completeness\",\n      \"context\": {\n        \"column\": \"ELEVATI13\",\n        \"null_ratio\": 1.0\n      },\n      \"feature_id\": \"\",\n      \"issue_code\": \"NULL_HEAVY_COLUMN\",\n      \"message\": \"Column 'ELEVATI13' is 100% null.\",\n      \"severity\": \"low\",\n      \"suggested_fix\": \"Review whether sparse fields should be populated or removed.\"\n    },\n    {\n      \"check_name\": \"column_completeness\",\n      \"context\": {\n        \"column\": \"HEIGHT_15\",\n        \"null_ratio\": 1.0\n      },\n      \"feature_id\": \"\",\n      \"issue_code\": \"NULL_HEAVY_COLUMN\",\n      \"message\": \"Column 'HEIGHT_15' is 100% null.\",\n      \"severity\": \"low\",\n      \"suggested_fix\": \"Review whether sparse fields should be populated or removed.\"\n    }\n  ],\n  \"run_record\": {\n    \"crs\": \"EPSG:4326\",\n    \"duration_seconds\": null,\n    \"enabled_checks\": [\n      \"crs_checks\",\n      \"geometry_checks\",\n      \"schema_checks\",\n      \"sqlserver_checks\",\n      \"linear_reference_checks\"\n    ],\n    \"error\": null,\n    \"feature_count\": 50,\n    \"filename\": \"centreline_intersections_sample.zip\",\n    \"finished_at\": null,\n    \"geometry_types\": [\n      \"MultiPoint\"\n    ],\n    \"input_path\": \"/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/demo/input/centreline_intersections_sample.zip\",\n    \"issue_counts\": {\n      \"high\": 0,\n      \"low\": 3,\n      \"medium\": 1,\n      \"total\": 4\n    },\n    \"normalization_notes\": [\n      \"Feature IDs copied from source column '_id1'.\",\n      \"CRS retained as EPSG:4326.\",\n      \"No geometry normalization changes were required.\",\n      \"Precision normalization skipped.\"\n    ],\n    \"readiness_band\": \"needs_review\",\n    \"readiness_score\": 87,\n    \"run_id\": \"geoqa-fa58aec23a57\",\n    \"started_at\": \"2026-05-27T23:15:00.149631+00:00\",\n    \"status\": \"completed\"\n  },\n  \"summary\": {\n    \"dataset\": {\n      \"columns\": [\n        \"_id1\",\n        \"INTERSE2\",\n        \"DATE_EF3\",\n        \"DATE_EX4\",\n        \"ELEVATI5\",\n        \"INTERSE6\",\n        \"CLASSIF7\",\n        \"CLASSIF8\",\n        \"NUMBER_9\",\n        \"ELEVATI10\",\n        \"ELEVATI11\",\n        \"ELEVATI12\",\n        \"ELEVATI13\",\n        \"ELEVATI14\",\n        \"HEIGHT_15\",\n        \"HEIGHT_16\",\n        \"STATE17\",\n        \"TRANS_I18\",\n        \"TRANS_I19\",\n        \"OBJECTI20\",\n        \"geometry\"\n      ],\n      \"crs\": \"EPSG:4326\",\n      \"feature_count\": 50,\n      \"filename\": \"centreline_intersections_sample.zip\",\n      \"geometry_types\": [\n        \"MultiPoint\"\n      ]\n    },\n    \"readiness\": {\n      \"band\": \"needs_review\",\n      \"penalties\": {\n        \"high\": 0,\n        \"low\": 3,\n        \"medium\": 1\n      },\n      \"score\": 87\n    }\n  }\n}\n\nTool trace:\n[\n  {\n    \"input_payload\": {\n      \"base_run_dir\": null,\n      \"comparison_key\": null,\n      \"output_dir\": \"demo/output/geoqa-fa58aec23a57\",\n      \"playbook_dir\": null\n    },\n    \"name\": \"load_run_evidence\",\n    \"output_summary\": {\n      \"issue_count\": 4,\n      \"run_record\": {\n        \"crs\": \"EPSG:4326\",\n        \"duration_seconds\": null,\n        \"enabled_checks\": [\n          \"crs_checks\",\n          \"geometry_checks\",\n          \"schema_checks\",\n          \"sqlserver_checks\",\n          \"linear_reference_checks\"\n        ],\n        \"error\": null,\n        \"feature_count\": 50,\n        \"filename\": \"centreline_intersections_sample.zip\",\n        \"finished_at\": null,\n        \"geometry_types\": [\n          \"MultiPoint\"\n        ],\n        \"input_path\": \"/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/demo/input/centreline_intersections_sample.zip\",\n        \"issue_counts\": {\n          \"high\": 0,\n          \"low\": 3,\n          \"medium\": 1,\n          \"total\": 4\n        },\n        \"normalization_notes\": [\n          \"Feature IDs copied from source column '_id1'.\",\n          \"CRS retained as EPSG:4326.\",\n          \"No geometry normalization changes were required.\",\n          \"Precision normalization skipped.\"\n        ],\n        \"readiness_band\": \"needs_review\",\n        \"readiness_score\": 87,\n        \"run_id\": \"geoqa-fa58aec23a57\",\n        \"started_at\": \"2026-05-27T23:15:00.149631+00:00\",\n        \"status\": \"completed\"\n      },\n      \"summary\": {\n        \"dataset\": {\n          \"columns\": [\n            \"_id1\",\n            \"INTERSE2\",\n            \"DATE_EF3\",\n            \"DATE_EX4\",\n            \"ELEVATI5\",\n            \"INTERSE6\",\n            \"CLASSIF7\",\n            \"CLASSIF8\",\n            \"NUMBER_9\",\n            \"ELEVATI10\",\n            \"ELEVATI11\",\n            \"ELEVATI12\",\n            \"ELEVATI13\",\n            \"ELEVATI14\",\n            \"HEIGHT_15\",\n            \"HEIGHT_16\",\n            \"STATE17\",\n            \"TRANS_I18\",\n            \"TRANS_I19\",\n            \"OBJECTI20\",\n            \"geometry\"\n          ],\n          \"crs\": \"EPSG:4326\",\n          \"feature_count\": 50,\n          \"filename\": \"centreline_intersections_sample.zip\",\n          \"geometry_types\": [\n            \"MultiPoint\"\n          ]\n        },\n        \"readiness\": {\n          \"band\": \"needs_review\",\n          \"penalties\": {\n            \"high\": 0,\n            \"low\": 3,\n            \"medium\": 1\n          },\n          \"score\": 87\n        }\n      }\n    },\n    \"reason\": \"Load deterministic run evidence.\"\n  },\n  {\n    \"input_payload\": {\n      \"base_run_dir\": null,\n      \"comparison_key\": null,\n      \"output_dir\": \"demo/output/geoqa-fa58aec23a57\",\n      \"playbook_dir\": null\n    },\n    \"name\": \"load_issue_summary\",\n    \"output_summary\": {\n      \"issue_counts_by_code\": {\n        \"DUPLICATE_GEOMETRY\": 1,\n        \"NULL_HEAVY_COLUMN\": 3\n      },\n      \"severity_counts\": {\n        \"high\": 0,\n        \"low\": 3,\n        \"medium\": 1,\n        \"total\": 4\n      },\n      \"top_issues\": {\n        \"count\": 4,\n        \"preview\": [\n          {\n            \"feature_id\": \"12\",\n            \"issue_code\": \"DUPLICATE_GEOMETRY\",\n            \"message\": \"Feature duplicates geometry of feature 11.\",\n            \"severity\": \"medium\",\n            \"suggested_fix\": \"Deduplicate repeated spatial features.\"\n          },\n          {\n            \"feature_id\": \"\",\n            \"issue_code\": \"NULL_HEAVY_COLUMN\",\n            \"message\": \"Column 'ELEVATI12' is 98% null.\",\n            \"severity\": \"low\",\n            \"suggested_fix\": \"Review whether sparse fields should be populated or removed.\"\n          },\n          {\n            \"feature_id\": \"\",\n            \"issue_code\": \"NULL_HEAVY_COLUMN\",\n            \"message\": \"Column 'ELEVATI13' is 100% null.\",\n            \"severity\": \"low\",\n            \"suggested_fix\": \"Review whether sparse fields should be populated or removed.\"\n          }\n        ]\n      }\n    },\n    \"reason\": \"Summarize findings by priority and finding type.\"\n  },\n  {\n    \"input_payload\": {\n      \"base_run_dir\": null,\n      \"comparison_key\": null,\n      \"output_dir\": \"demo/output/geoqa-fa58aec23a57\",\n      \"playbook_dir\": null\n    },\n    \"name\": \"load_issue_rows_page\",\n    \"output_summary\": {\n      \"limit\": 10,\n      \"offset\": 0,\n      \"rows\": {\n        \"count\": 4,\n        \"preview\": [\n          {\n            \"check_name\": \"duplicate_geometry\",\n            \"context\": {},\n            \"feature_id\": \"12\",\n            \"issue_code\": \"DUPLICATE_GEOMETRY\",\n            \"message\": \"Feature duplicates geometry of feature 11.\",\n            \"severity\": \"medium\",\n            \"suggested_fix\": \"Deduplicate repeated spatial features.\"\n          },\n          {\n            \"check_name\": \"column_completeness\",\n            \"context\": {\n              \"column\": \"ELEVATI12\",\n              \"null_ratio\": 0.98\n            },\n            \"feature_id\": \"\",\n            \"issue_code\": \"NULL_HEAVY_COLUMN\",\n            \"message\": \"Column 'ELEVATI12' is 98% null.\",\n            \"severity\": \"low\",\n            \"suggested_fix\": \"Review whether sparse fields should be populated or removed.\"\n          },\n          {\n            \"check_name\": \"column_completeness\",\n            \"context\": {\n              \"column\": \"ELEVATI13\",\n              \"null_ratio\": 1.0\n            },\n            \"feature_id\": \"\",\n            \"issue_code\": \"NULL_HEAVY_COLUMN\",\n            \"message\": \"Column 'ELEVATI13' is 100% null.\",\n            \"severity\": \"low\",\n            \"suggested_fix\": \"Review whether sparse fields should be populated or removed.\"\n          }\n        ]\n      },\n      \"total_rows\": 4\n    },\n    \"reason\": \"Inspect a small slice of issue rows for examples.\"\n  },\n  {\n    \"input_payload\": {\n      \"base_run_dir\": null,\n      \"comparison_key\": null,\n      \"output_dir\": \"demo/output/geoqa-fa58aec23a57\",\n      \"playbook_dir\": null\n    },\n    \"name\": \"retrieve_fix_playbooks\",\n    \"output_summary\": {\n      \"playbooks\": {\n        \"count\": 2,\n        \"preview\": [\n          {\n            \"issue_codes\": [\n              \"DUPLICATE_GEOMETRY\"\n            ],\n            \"source\": \"/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/duplicate_geometry_playbook.md\",\n            \"text\": \"# Duplicate Geometry Playbook\\n\\nUse this playbook when GeoQA reports duplicate geometry records.\\n\\nGrounded guidance:\\n- Duplicate geometries can indicate duplicate records, conflated assets, or valid multi-record modeling.\\n- For intersection datasets, duplicate point geometries may be valid when multiple records describe the same physical location at different levels or classifications.\\n- Review duplicate geometry findings before spatial joins, network analysis, SQL Server loading, or downstream reporting.\\n- Do not state that duplicate geometries make a dataset unusable unless the workflow requirements prove that conclusion.\\n\\n\",\n            \"title\": \"Duplicate Geometry Playbook\"\n          },\n          {\n            \"issue_codes\": [\n              \"NULL_HEAVY_COLUMN\"\n            ],\n            \"source\": \"/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/geometry_fix_playbook.md\",\n            \"text\": \"# Geometry And Schema Fix Playbook\\n\\nUse this playbook for geometry validity, null geometry, mixed geometry, size anomaly, schema, and sparse column findings.\\n\\nGrounded guidance:\\n- Null or empty geometries should be restored from source data or removed before publishing.\\n- Invalid geometries should be repaired with a GIS repair workflow and rechecked.\\n- Mixed geometry types should be split into separate layers when downstream systems expect one geometry family.\\n- Null-heavy columns should be reviewed with the data owner before removal or population.\\n- Required schema fields should be added or mapped before downstream use.\\n\\n\",\n            \"title\": \"Geometry And Schema Fix Playbook\"\n          }\n        ]\n      }\n    },\n    \"reason\": \"Retrieve remediation guidance for the detected findings.\"\n  }\n]\n\nRetrieved playbooks:\n# Duplicate Geometry Playbook\n\nUse this playbook when GeoQA reports duplicate geometry records.\n\nGrounded guidance:\n- Duplicate geometries can indicate duplicate records, conflated assets, or valid multi-record modeling.\n- For intersection datasets, duplicate point geometries may be valid when multiple records describe the same physical location at different levels or classifications.\n- Review duplicate geometry findings before spatial joins, network analysis, SQL Server loading, or downstream reporting.\n- Do not state that duplicate geometries make a dataset unusable unless the workflow requirements prove that conclusion.\n\n\n\n# Geometry And Schema Fix Playbook\n\nUse this playbook for geometry validity, null geometry, mixed geometry, size anomaly, schema, and sparse column findings.\n\nGrounded guidance:\n- Null or empty geometries should be restored from source data or removed before publishing.\n- Invalid geometries should be repaired with a GIS repair workflow and rechecked.\n- Mixed geometry types should be split into separate layers when downstream systems expect one geometry family.\n- Null-heavy columns should be reviewed with the data owner before removal or population.\n- Required schema fields should be added or mapped before downstream use.\n\n\n"
+}

@@ -1,0 +1,24 @@
+{
+  "task": "report",
+  "model": "static-file-model",
+  "provider": "static",
+  "status": "draft_ready",
+  "started_at": "2026-05-27T23:15:00.562276+00:00",
+  "finished_at": "2026-05-27T23:15:00.593646+00:00",
+  "runtime_config": {
+    "openai_api_key": null,
+    "llm_model": null,
+    "output_root": "outputs",
+    "agent_report_enabled": true,
+    "openai_timeout_seconds": 30.0,
+    "openai_max_retries": 2,
+    "openai_retry_backoff_seconds": 1.0,
+    "agent_max_steps": 6,
+    "agent_output_token_budget": 1600,
+    "env_file": null
+  },
+  "step_count": 4,
+  "planning_mode": "fallback",
+  "prompt_name": "technical_report_v2",
+  "errors": []
+}

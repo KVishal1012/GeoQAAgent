@@ -135,7 +135,7 @@ See the release summary: [docs/v0.2_release_notes.md](docs/v0.2_release_notes.md
 Copy and run:
 
 ```bash
-python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-report --llm-provider static --static-report-file demo/output/agent_report_draft.md --approve-agent-report --reviewer-name "Demo Reviewer"
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/static_v4_report.md --approve-agent-report --reviewer-name "Demo Reviewer"
 ```
 
 This path uses the bundled static gateway, so it works without an API key. Live OpenAI-backed generation is also supported by setting `OPENAI_API_KEY` and `GEOQA_LLM_MODEL` and using `--llm-provider openai`.
@@ -254,7 +254,7 @@ V3 adds:
 ### V3 full analyst CLI flow
 
 ```bash
-python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-report --llm-provider static --static-report-file demo/output/agent_report_draft.md --reviewer-name "Demo Reviewer" --approve-agent-report
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/static_v4_report.md --reviewer-name "Demo Reviewer" --approve-agent-report
 python app.py --review-output-dir demo/output --generate-fix-plan
 python app.py --compare-run-dir demo/output_previous --target-run-dir demo/output
 python app.py --review-output-dir demo/output --export-handoff-bundle
@@ -273,6 +273,8 @@ python app.py --review-output-dir demo/output --export-handoff-bundle
 
 ## V4 real OpenAI agent runtime
 
+See [docs/v4_release_notes.md](docs/v4_release_notes.md) for this release summary.
+
 V4 upgrades GeoQA from draft generation into a real OpenAI-backed, tool-using analyst agent.
 
 V4 adds:
@@ -283,17 +285,18 @@ V4 adds:
 - `agent_trace.json` for ordered tool calls and prompt context
 - a first-class `Run Agent` workflow in Streamlit
 - backward-compatible `--agent-report` support routed through the new `report` agent task
+- V4 primary CLI path is `--agent-run --agent-task ...`; `--agent-report` is compatibility mode
 
 ### V4 agent CLI flow
 
 ```bash
-python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/agent_report_draft.md --approve-agent-report --reviewer-name "Demo Reviewer"
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/static_v4_report.md --approve-agent-report --reviewer-name "Demo Reviewer"
 ```
 
 You can also run the new tasks against an existing reviewed run:
 
 ```bash
-python app.py --review-output-dir demo/output --agent-run --agent-task fix_plan --llm-provider static --static-report-file demo/output/agent_report_draft.md
+python app.py --review-output-dir demo/output --agent-run --agent-task fix_plan --llm-provider static --static-report-file demo/output/static_v4_report.md
 python app.py --review-output-dir demo/output --export-handoff-bundle
 ```
 

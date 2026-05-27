@@ -1,35 +1,252 @@
 {
   "provider": "static",
   "model": "static-file-model",
-  "prompt_name": "technical_report_v1",
+  "prompt_name": "technical_report_v2",
+  "generated_at": "2026-05-27T23:15:00.593646+00:00",
+  "task": "report",
   "grounding_sources": [
     "summary.json",
     "issues.csv",
     "run_record.json",
-    "geoqa/rag/knowledge_base/duplicate_geometry_playbook.md",
-    "geoqa/rag/knowledge_base/geometry_fix_playbook.md"
+    "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/duplicate_geometry_playbook.md",
+    "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/geometry_fix_playbook.md"
   ],
+  "runtime_config": {
+    "openai_api_key": null,
+    "llm_model": null,
+    "output_root": "outputs",
+    "agent_report_enabled": true,
+    "openai_timeout_seconds": 30.0,
+    "openai_max_retries": 2,
+    "openai_retry_backoff_seconds": 1.0,
+    "agent_max_steps": 6,
+    "agent_output_token_budget": 1600,
+    "env_file": null
+  },
   "playbooks": [
     {
-      "source": "geoqa/rag/knowledge_base/duplicate_geometry_playbook.md",
+      "source": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/duplicate_geometry_playbook.md",
       "title": "Duplicate Geometry Playbook",
-      "text": "# Duplicate Geometry Playbook\n\nUse this playbook when GeoQA reports duplicate geometry records.\n\nGrounded guidance:\n- Duplicate geometries can indicate duplicate records, conflated assets, or valid multi-record modeling.\n- For intersection datasets, duplicate point geometries may be valid when multiple records describe the same physical location at different levels or classifications.\n- Review duplicate geometry findings before spatial joins, network analysis, SQL Server loading, or downstream reporting.\n- Do not state that duplicate geometries make a dataset unusable unless the workflow requirements prove that conclusion.\n",
+      "text": "# Duplicate Geometry Playbook\n\nUse this playbook when GeoQA reports duplicate geometry records.\n\nGrounded guidance:\n- Duplicate geometries can indicate duplicate records, conflated assets, or valid multi-record modeling.\n- For intersection datasets, duplicate point geometries may be valid when multiple records describe the same physical location at different levels or classifications.\n- Review duplicate geometry findings before spatial joins, network analysis, SQL Server loading, or downstream reporting.\n- Do not state that duplicate geometries make a dataset unusable unless the workflow requirements prove that conclusion.\n\n",
       "issue_codes": [
         "DUPLICATE_GEOMETRY"
       ]
     },
     {
-      "source": "geoqa/rag/knowledge_base/geometry_fix_playbook.md",
+      "source": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/geometry_fix_playbook.md",
       "title": "Geometry And Schema Fix Playbook",
-      "text": "# Geometry And Schema Fix Playbook\n\nUse this playbook for geometry validity, null geometry, mixed geometry, size anomaly, schema, and sparse column findings.\n\nGrounded guidance:\n- Null or empty geometries should be restored from source data or removed before publishing.\n- Invalid geometries should be repaired with a GIS repair workflow and rechecked.\n- Mixed geometry types should be split into separate layers when downstream systems expect one geometry family.\n- Null-heavy columns should be reviewed with the data owner before removal or population.\n- Required schema fields should be added or mapped before downstream use.\n",
+      "text": "# Geometry And Schema Fix Playbook\n\nUse this playbook for geometry validity, null geometry, mixed geometry, size anomaly, schema, and sparse column findings.\n\nGrounded guidance:\n- Null or empty geometries should be restored from source data or removed before publishing.\n- Invalid geometries should be repaired with a GIS repair workflow and rechecked.\n- Mixed geometry types should be split into separate layers when downstream systems expect one geometry family.\n- Null-heavy columns should be reviewed with the data owner before removal or population.\n- Required schema fields should be added or mapped before downstream use.\n\n",
       "issue_codes": [
         "NULL_HEAVY_COLUMN"
       ]
     }
   ],
-  "report_text": "# GeoQA Agent-Assisted Report Draft\n\n## Executive Summary\n\nGeoQA inspected `centreline_intersections_sample.zip`, containing 50 features with MultiPoint geometry in EPSG:4326.\n\nThe dataset is classified as `needs_review` with a readiness score of `87/100`.\n\nThe most important finding is a duplicate geometry record. This may be valid for intersection datasets in some workflows, but it should be reviewed before using the data in spatial joins, network analysis, SQL Server loading, or downstream reporting.\n\n## Evidence Used\n\n- `summary.json` reports 50 features, `needs_review`, and a readiness score of `87`.\n- `run_record.json` shows CRS `EPSG:4326`, geometry type `MultiPoint`, and that CRS, geometry, schema, SQL Server, and linear reference checks were run.\n- `issues.csv` contains 4 findings: 1 medium-severity duplicate geometry finding and 3 low-severity null-heavy column findings.\n\n## Key Findings\n\n- `DUPLICATE_GEOMETRY` was detected for feature `12`, which duplicates the geometry of feature `11`.\n- `NULL_HEAVY_COLUMN` was detected for `ELEVATI12`, `ELEVATI13`, and `HEIGHT_15`.\n- No high-severity issues were detected in this sample.\n\n## Recommended Review Actions\n\n- Review whether the duplicate point geometry reflects a valid intersection modeling pattern or a duplicated source record.\n- Confirm whether sparse elevation and height fields are expected before downstream handoff.\n- If this dataset is intended for routing or network analysis, the duplicate geometry finding should be reviewed before use.\n\n## Limits of Interpretation\n\n- This draft is grounded in GeoQA evidence and retrieved playbook text.\n- It does not claim routing failure, SQL Server failure, or workflow unsuitability unless the deterministic QA evidence proves that result.\n",
+  "report_text": "# GeoQA Agent-Assisted Report Draft\n\n## Executive Summary\n\nGeoQA inspected `centreline_intersections_sample.zip`, containing 50 features with MultiPoint geometry in EPSG:4326.\n\nThe dataset is classified as `needs_review` with a readiness score of `87/100`.\n\n## Deterministic Findings\n\n- Total findings: `4`\n- Medium severity findings: `1`\n- Low severity findings: `3`\n- Most frequent finding type: `NULL_HEAVY_COLUMN` (`3` findings)\n\n## Conditional Workflow Guidance\n\nThe `DUPLICATE_GEOMETRY` finding should be reviewed before downstream use.\n\n## Evidence Boundary\n\nThis report is grounded in deterministic GeoQA artifacts and does not claim workflow suitability beyond those findings.\n",
   "raw": {
-    "report_path": "demo/output/agent_report_draft.md"
-  }
+    "prompt_length": 13009,
+    "report_path": "demo/output/static_v4_report.md"
+  },
+  "consistency": {
+    "passed": true,
+    "blocking_errors": [],
+    "warnings": [],
+    "checked_claims": [
+      {
+        "type": "numbers",
+        "values": [
+          "1",
+          "3",
+          "4",
+          "50",
+          "87",
+          "100",
+          "4326"
+        ]
+      },
+      {
+        "type": "readiness_band",
+        "values": [
+          "needs_review"
+        ]
+      },
+      {
+        "type": "issue_codes",
+        "values": [
+          "DUPLICATE_GEOMETRY",
+          "NULL_HEAVY_COLUMN"
+        ]
+      },
+      {
+        "type": "severity_counts",
+        "values": {
+          "high": 0,
+          "medium": 1,
+          "low": 3
+        }
+      },
+      {
+        "type": "issue_code_counts",
+        "values": {
+          "DUPLICATE_GEOMETRY": 1,
+          "NULL_HEAVY_COLUMN": 3
+        }
+      },
+      {
+        "type": "enabled_checks",
+        "values": [
+          "crs_checks",
+          "geometry_checks",
+          "linear_reference_checks",
+          "schema_checks",
+          "sqlserver_checks"
+        ]
+      },
+      {
+        "type": "agent_tools",
+        "values": [
+          "load_issue_rows_page",
+          "load_issue_summary",
+          "load_run_evidence",
+          "retrieve_fix_playbooks"
+        ]
+      }
+    ]
+  },
+  "hallucination": {
+    "passed": true,
+    "blocking_errors": [],
+    "warnings": [],
+    "checked_claims": [
+      {
+        "type": "numbers",
+        "values": [
+          "1",
+          "3",
+          "4",
+          "50",
+          "87",
+          "100",
+          "4326"
+        ]
+      },
+      {
+        "type": "readiness_band",
+        "values": [
+          "needs_review"
+        ]
+      },
+      {
+        "type": "issue_codes",
+        "values": [
+          "DUPLICATE_GEOMETRY",
+          "NULL_HEAVY_COLUMN"
+        ]
+      },
+      {
+        "type": "severity_counts",
+        "values": {
+          "high": 0,
+          "medium": 1,
+          "low": 3
+        }
+      },
+      {
+        "type": "issue_code_counts",
+        "values": {
+          "DUPLICATE_GEOMETRY": 1,
+          "NULL_HEAVY_COLUMN": 3
+        }
+      },
+      {
+        "type": "enabled_checks",
+        "values": [
+          "crs_checks",
+          "geometry_checks",
+          "linear_reference_checks",
+          "schema_checks",
+          "sqlserver_checks"
+        ]
+      },
+      {
+        "type": "agent_tools",
+        "values": [
+          "load_issue_rows_page",
+          "load_issue_summary",
+          "load_run_evidence",
+          "retrieve_fix_playbooks"
+        ]
+      },
+      {
+        "type": "sentence_grounding",
+        "sentence": "# GeoQA Agent-Assisted Report Draft ## Executive Summary GeoQA inspected `centreline_intersections_sample.zip`, containing 50 features with MultiPoint geometry in EPSG:4326.",
+        "grounded_terms": [
+          "EPSG:4326",
+          "MultiPoint",
+          "centreline_intersections_sample.zip"
+        ]
+      },
+      {
+        "type": "sentence_grounding",
+        "sentence": "The dataset is classified as `needs_review` with a readiness score of `87/100`.",
+        "grounded_terms": [
+          "87",
+          "needs_review"
+        ]
+      },
+      {
+        "type": "sentence_grounding",
+        "sentence": "## Deterministic Findings - Total findings: `4` - Medium severity findings: `1` - Low severity findings: `3` - Most frequent finding type: `NULL_HEAVY_COLUMN` (`3` findings) ## Conditional Workflow Guidance The `DUPLICATE_GEOMETRY` finding should be reviewed before downstream use.",
+        "grounded_terms": [
+          "DUPLICATE_GEOMETRY",
+          "NULL_HEAVY_COLUMN",
+          "duplicate_geometry",
+          "low",
+          "medium"
+        ]
+      },
+      {
+        "type": "sentence_grounding",
+        "sentence": "## Evidence Boundary This report is grounded in deterministic GeoQA artifacts and does not claim workflow suitability beyond those findings.",
+        "grounded_terms": [
+          "low"
+        ]
+      }
+    ]
+  },
+  "review_status": {
+    "status": "approved",
+    "reviewer_name": "Demo Reviewer",
+    "reviewed_at": "2026-05-27T23:15:00.619620+00:00",
+    "notes": null,
+    "draft_path": "demo/output/geoqa-fa58aec23a57/agent_report_draft.md",
+    "final_path": "demo/output/geoqa-fa58aec23a57/agent_report.md",
+    "blocking_errors": [],
+    "warnings": []
+  },
+  "agent_session": {
+    "task": "report",
+    "model": "static-file-model",
+    "provider": "static",
+    "status": "draft_ready",
+    "started_at": "2026-05-27T23:15:00.562276+00:00",
+    "finished_at": "2026-05-27T23:15:00.593646+00:00",
+    "runtime_config": {
+      "openai_api_key": null,
+      "llm_model": null,
+      "output_root": "outputs",
+      "agent_report_enabled": true,
+      "openai_timeout_seconds": 30.0,
+      "openai_max_retries": 2,
+      "openai_retry_backoff_seconds": 1.0,
+      "agent_max_steps": 6,
+      "agent_output_token_budget": 1600,
+      "env_file": null
+    },
+    "step_count": 4,
+    "planning_mode": "fallback",
+    "prompt_name": "technical_report_v2",
+    "errors": []
+  },
+  "agent_session_path": "demo/output/geoqa-fa58aec23a57/agent_session.json",
+  "agent_trace_path": "demo/output/geoqa-fa58aec23a57/agent_trace.json"
 }
-

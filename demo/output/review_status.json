@@ -1,10 +1,10 @@
 {
   "status": "approved",
   "reviewer_name": "Demo Reviewer",
-  "reviewed_at": "2026-05-16T00:00:00+00:00",
-  "notes": "Bundled demo approval for the static gateway walkthrough.",
-  "draft_path": "demo/output/agent_report_draft.md",
-  "final_path": "demo/output/agent_report.md",
+  "reviewed_at": "2026-05-27T23:15:00.619620+00:00",
+  "notes": null,
+  "draft_path": "demo/output/geoqa-fa58aec23a57/agent_report_draft.md",
+  "final_path": "demo/output/geoqa-fa58aec23a57/agent_report.md",
   "blocking_errors": [],
   "warnings": []
 }
