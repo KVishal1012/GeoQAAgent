@@ -333,3 +333,16 @@ The Streamlit console now lets analysts:
 - required schema columns, null-heavy columns, duplicate feature IDs
 - optional SQL Server compatibility checks
 - optional linear reference checks
+
+## Vercel deployment scaffold
+
+GeoQA now includes a minimal Vercel Python deployment scaffold:
+
+- [vercel.json](vercel.json)
+- [api/index.py](api/index.py)
+
+This scaffold is intended for lightweight API health/config validation on Vercel.
+
+Full Streamlit analyst workflows should continue to run on a stateful container/VM host for now.
+
+Deployment guide: [docs/vercel_deploy.md](docs/vercel_deploy.md)
