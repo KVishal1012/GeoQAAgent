@@ -334,15 +334,22 @@ The Streamlit console now lets analysts:
 - optional SQL Server compatibility checks
 - optional linear reference checks
 
-## Vercel deployment scaffold
+## Vercel API deployment phase
 
-GeoQA now includes a minimal Vercel Python deployment scaffold:
+GeoQA now includes a Vercel Python API backend:
 
 - [vercel.json](vercel.json)
 - [api/index.py](api/index.py)
 
-This scaffold is intended for lightweight API health/config validation on Vercel.
+Available routes include:
 
-Full Streamlit analyst workflows should continue to run on a stateful container/VM host for now.
+- public: `/`, `/health`, `/config`
+- authenticated: `/api/v1/runs`, `/api/v1/runs/{run_id}`, `/api/v1/runs/{run_id}/review`, `/api/v1/runs/{run_id}/artifacts`
+
+Notes:
+
+- `/api/v1/*` requires `x-api-key` when `GEOQA_API_KEY` is configured.
+- Run processing follows `queued -> running -> completed|failed`.
+- Streamlit remains the primary local/stateful operator console in this phase.
 
 Deployment guide: [docs/vercel_deploy.md](docs/vercel_deploy.md)
