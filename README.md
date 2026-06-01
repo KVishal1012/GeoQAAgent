@@ -1,5 +1,5 @@
 # GeoQA Agent
-
+## Deterministic Spatial QA + Evidence-Backed AI Reports + Human Review
 GeoQA Agent validates geospatial files, normalizes their geometry and CRS, runs deterministic QA checks, assigns severity, computes a readiness score, and writes a report plus issue CSV.
 
 ## Why GeoQA Agent?
