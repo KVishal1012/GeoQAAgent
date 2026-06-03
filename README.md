@@ -27,6 +27,36 @@ The output is an evidence-backed QA package:
 - run record
 - append-only run log
 
+## V1 Product Complete
+
+V1 is the first real product target for GeoQA Agent: a deployed dataset-readiness MVP for GIS and infrastructure teams.
+
+V1 lets an analyst:
+
+- run QA on GeoJSON, GPKG, or zipped shapefile data
+- review deterministic findings in plain language
+- generate grounded agent reports, fix plans, and handoff summaries
+- approve or reject AI-assisted outputs
+- export a handoff bundle for downstream teams
+
+V1 deployment uses:
+
+- Vercel API for lightweight integration routes
+- Streamlit on a stateful host for the analyst/operator UI
+
+V1 docs:
+
+- [V1 release notes](docs/v1_release_notes.md)
+- [V1 deployment guide](docs/v1_deployment.md)
+- [V1 Centreline case study](docs/v1_case_study_centreline.md)
+- [V1 glossary](docs/v1_glossary.md)
+
+Canonical V1 demo command:
+
+```bash
+python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/static_v4_report.md --approve-agent-report --reviewer-name "Demo Reviewer"
+```
+
 ## Project flowchart
 
 ```mermaid
