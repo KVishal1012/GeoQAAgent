@@ -76,6 +76,8 @@ def test_vercel_root_renders_operator_ui(monkeypatch, tmp_path):
     assert "Deployment Status" in body
     assert "type=\"file\"" in body
     assert "Upload and queue QA" in body
+    assert "Target CRS / SRID for optional reprojection" in body
+    assert "EPSG:3857" in body
 
 
 def test_vercel_api_requires_api_key_for_v1_routes(monkeypatch, tmp_path):
@@ -153,6 +155,25 @@ def test_vercel_api_review_requires_completed_agent_draft(monkeypatch, tmp_path)
     assert "request_id" in payload
 
 
+def test_vercel_api_rejects_invalid_target_srid(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+    monkeypatch.setenv("GEOQA_API_KEY", "test-key")
+
+    input_path = tmp_path / "clean.geojson"
+    _write_geojson(input_path)
+
+    client = app.test_client()
+    response = client.post(
+        "/api/v1/runs",
+        headers={"x-api-key": "test-key"},
+        json={"input_path": str(input_path), "target_srid": "not-a-srid"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"]["code"] == "validation_error"
+    assert response.get_json()["error"]["details"]["field"] == "target_crs"
+
+
 def test_vercel_api_error_envelope_for_validation(monkeypatch, tmp_path):
     monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
     monkeypatch.setenv("GEOQA_API_KEY", "test-key")
@@ -219,6 +240,7 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
             "upload_storage_path": upload_payload["storage_path"],
             "filename": upload_payload["filename"],
             "required_columns": ["asset_id"],
+            "target_srid": "3857",
         },
     )
     assert created.status_code == 202
@@ -236,6 +258,7 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
     completed_payload = completed.get_json()
     assert completed_payload["status"] == "completed"
     assert completed_payload["readiness_band"] == "ready"
+    assert completed_payload["target_crs"] == "EPSG:3857"
 
     artifacts = client.get(f"/api/v1/runs/{run_id}/artifacts", headers=headers)
     artifact_payload = artifacts.get_json()

@@ -34,6 +34,7 @@ V1 is the first real product target for GeoQA Agent: a deployed dataset-readines
 V1 lets an analyst:
 
 - run QA on GeoJSON, GPKG, or zipped shapefile data
+- optionally reproject to a target CRS/SRID such as `EPSG:4326` or `EPSG:3857`
 - review deterministic findings in plain language
 - generate grounded agent reports, fix plans, and handoff summaries
 - approve or reject AI-assisted outputs
@@ -381,7 +382,7 @@ Available routes include:
 
 Notes:
 
-- `/` renders the upload dashboard for `.geojson`, `.gpkg`, and zipped shapefile inputs.
+- `/` renders the upload dashboard for `.geojson`, `.gpkg`, and zipped shapefile inputs, including an optional target CRS/SRID reprojection field.
 - `/health` and `/config` remain public JSON endpoints for deployment checks.
 - upload-created runs remain queued until the Python worker processes them.
 - `/api/v1/*` requires `x-api-key` when `GEOQA_API_KEY` is configured.

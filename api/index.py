@@ -12,6 +12,7 @@ from typing import Any
 from flask import Flask, Response, g, jsonify, request
 
 from geoqa.config import load_app_config
+from geoqa.normalization.crs_normalizer import normalize_target_crs
 from geoqa.production.store import ProductionStoreError, build_production_store
 from geoqa.reporting.agent_report_generator import read_agent_review_status, review_existing_agent_report
 from geoqa.runner import run_geoqa
@@ -134,14 +135,16 @@ def _parse_required_columns(raw_columns: Any) -> list[str]:
 
 
 def _parse_target_crs(raw_value: Any) -> str | None:
-    target_crs = str(raw_value).strip() if raw_value is not None else None
-    return target_crs or None
+    try:
+        return normalize_target_crs(raw_value)
+    except ValueError as exc:
+        raise APIError("validation_error", str(exc), details={"field": "target_crs"}) from exc
 
 
 def _parse_run_payload() -> dict[str, Any]:
     payload = request.get_json(silent=True) or {}
     required_columns = _parse_required_columns(payload.get("required_columns") or [])
-    target_crs = _parse_target_crs(payload.get("target_crs"))
+    target_crs = _parse_target_crs(payload.get("target_crs") or payload.get("target_srid") or payload.get("srid"))
 
     upload_id = str(payload.get("upload_id") or "").strip()
     upload_storage_path = str(payload.get("upload_storage_path") or payload.get("storage_path") or "").strip()
@@ -331,8 +334,15 @@ def _landing_page_html() -> str:
         <input id="dataset" type="file" accept=".geojson,.gpkg,.zip,application/zip" />
         <label for="requiredColumns">Required columns, optional</label>
         <input id="requiredColumns" type="text" placeholder="asset_id, road_name" />
-        <label for="targetCrs">Target CRS, optional</label>
-        <input id="targetCrs" type="text" placeholder="EPSG:4326" />
+        <label for="targetCrs">Target CRS / SRID for optional reprojection</label>
+        <input id="targetCrs" type="text" list="crsPresets" placeholder="Keep source CRS, or enter EPSG:4326 / 3857" />
+        <datalist id="crsPresets">
+          <option value="EPSG:4326">WGS 84 longitude/latitude</option>
+          <option value="EPSG:3857">Web Mercator</option>
+          <option value="4326">SRID 4326</option>
+          <option value="3857">SRID 3857</option>
+        </datalist>
+        <p class="small">Leave blank to keep the source CRS. Enter an EPSG code only when the source CRS is known.</p>
         <div class="actions">
           <button id="submitRun">Upload and queue QA</button>
           <button id="refreshRun" class="secondary" disabled>Refresh status</button>
@@ -440,7 +450,8 @@ def _landing_page_html() -> str:
             upload_storage_path: upload.storage_path,
             filename: upload.filename,
             required_columns: requiredColumns,
-            target_crs: targetCrs
+            target_crs: targetCrs,
+            target_srid: targetCrs
           }})
         }});
         const run = await readJson(runResponse);

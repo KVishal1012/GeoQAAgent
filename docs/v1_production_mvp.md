@@ -8,6 +8,7 @@ The V1 production MVP is an uploadable GeoQA web app. Vercel hosts the web UI an
 
 - Vercel serves `/`, `/health`, `/config`, and `/api/v1/*`.
 - Users upload `.geojson`, `.gpkg`, or zipped shapefile inputs from `/`.
+- Users may optionally enter a target CRS/SRID, such as `EPSG:4326`, `EPSG:3857`, `4326`, or `3857`, to reproject before QA.
 - Upload runs are stored as queued jobs.
 - The worker downloads queued uploads, runs `run_geoqa(...)`, stores artifacts, and marks the run completed or failed.
 - Supabase is the production persistence target. If Supabase env vars are absent, the app uses a local filesystem fallback for tests and local demos.
@@ -63,6 +64,7 @@ Use the page to:
 
 - paste the API key if configured
 - upload a `.geojson`, `.gpkg`, or zipped shapefile
+- optionally enter a target CRS/SRID for reprojection
 - queue the QA run
 - wait for status to become `completed`
 - download `qa_report.md`, `issues.csv`, `summary.json`, and `run_record.json`
@@ -80,5 +82,6 @@ Expected results:
 - `/` displays the upload UI.
 - unsupported file types are rejected.
 - valid uploads create queued runs.
+- target SRIDs are normalized to EPSG CRS strings before processing.
 - the worker processes queued runs.
 - completed runs expose downloadable QA artifacts.

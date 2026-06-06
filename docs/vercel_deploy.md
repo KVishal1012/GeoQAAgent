@@ -9,7 +9,7 @@ This repo includes a Vercel Python upload UI and API backend using:
 
 Public endpoints:
 
-- `GET /` renders the upload dashboard
+- `GET /` renders the upload dashboard with optional target CRS/SRID reprojection
 - `GET /health` returns JSON health status
 - `GET /config` returns JSON runtime visibility
 
@@ -24,6 +24,7 @@ Authenticated API endpoints:
 ## Runtime model
 
 - Upload-created run submission follows an async lifecycle: `queued -> running -> completed|failed`.
+- Optional target CRS/SRID values are normalized before QA, for example `3857` becomes `EPSG:3857`.
 - A Python worker processes queued uploads outside the Vercel request path.
 - Deterministic QA remains the source of truth.
 - API responses return structured JSON with stable error envelopes.

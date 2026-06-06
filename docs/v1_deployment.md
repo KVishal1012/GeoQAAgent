@@ -62,7 +62,7 @@ curl -H "x-api-key: <key>" https://<app>.vercel.app/api/v1/runs
 
 Expected behavior:
 
-- `/` shows the upload dashboard.
+- `/` shows the upload dashboard, including optional target CRS/SRID reprojection.
 - `/health` returns healthy status.
 - `/config` returns runtime visibility and `request_id`.
 - `/api/v1/*` returns `401` without `x-api-key` when `GEOQA_API_KEY` is configured.
