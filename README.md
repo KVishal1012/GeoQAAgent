@@ -384,7 +384,8 @@ Notes:
 
 - `/` renders the upload dashboard for `.geojson`, `.gpkg`, and zipped shapefile inputs, including an optional target CRS/SRID reprojection field.
 - `/health` and `/config` remain public JSON endpoints for deployment checks.
-- upload-created runs remain queued until the Python worker processes them.
+- upload-created runs remain queued until the Python worker claims and processes them.
+- V1.1 supports direct Supabase upload sessions and gated 1 GB large-file mode.
 - `/api/v1/*` requires `x-api-key` when `GEOQA_API_KEY` is configured.
 - Run processing follows `queued -> running -> completed|failed`.
 - Streamlit remains the primary local/stateful operator console in this phase.

@@ -269,3 +269,55 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
     report = client.get(f"/api/v1/runs/{run_id}/artifacts/qa_report/download", headers=headers)
     assert report.status_code == 200
     assert b"GeoQA Spatial Readiness Report" in report.data
+
+
+def test_vercel_upload_init_and_complete_local_fallback(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+    monkeypatch.setenv("GEOQA_API_KEY", "test-key")
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+
+    client = app.test_client()
+    headers = {"x-api-key": "test-key"}
+
+    init = client.post(
+        "/api/v1/uploads/init",
+        headers=headers,
+        json={"filename": "roads.geojson", "size_bytes": 128, "content_type": "application/geo+json"},
+    )
+    assert init.status_code == 201
+    session = init.get_json()
+    assert session["direct_upload"] is False
+    assert session["fallback_upload_url"] == "/api/v1/uploads"
+
+    complete = client.post(
+        "/api/v1/uploads/complete",
+        headers=headers,
+        json={
+            "upload_id": session["upload_id"],
+            "filename": session["filename"],
+            "storage_path": session["storage_path"],
+            "size_bytes": session["size_bytes"],
+            "content_type": session["content_type"],
+        },
+    )
+    assert complete.status_code == 200
+    assert complete.get_json()["upload_completed_at"]
+
+
+def test_vercel_config_exposes_v11_runtime_controls(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+    monkeypatch.setenv("GEOQA_LARGE_FILE_MODE", "true")
+    monkeypatch.setenv("GEOQA_LARGE_FILE_MAX_UPLOAD_MB", "1024")
+    monkeypatch.setenv("GEOQA_WORKER_STALE_AFTER_SECONDS", "30")
+    monkeypatch.setenv("GEOQA_WORKER_MAX_ATTEMPTS", "4")
+
+    client = app.test_client()
+    response = client.get("/config")
+    payload = response.get_json()
+
+    assert payload["large_file_mode"] is True
+    assert payload["large_file_max_upload_mb"] == 1024
+    assert payload["active_max_upload_mb"] == 1024
+    assert payload["worker_stale_after_seconds"] == 30
+    assert payload["worker_max_attempts"] == 4

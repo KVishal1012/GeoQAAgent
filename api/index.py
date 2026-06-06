@@ -20,6 +20,7 @@ from geoqa.runner import run_geoqa
 app = Flask(__name__)
 
 _STATE_LOCK = threading.Lock()
+_STATE_ROOT_BY_RUN_ID: dict[str, Path] = {}
 
 
 @dataclass(slots=True)
@@ -78,11 +79,13 @@ def _state_root() -> Path:
 
 
 def _run_state_path(run_id: str) -> Path:
-    return _state_root() / f"{run_id}.json"
+    root = _STATE_ROOT_BY_RUN_ID.get(run_id) or _state_root()
+    return root / f"{run_id}.json"
 
 
 def _write_state(state: RunState) -> None:
     with _STATE_LOCK:
+        _STATE_ROOT_BY_RUN_ID.setdefault(state.run_id, _state_root())
         _run_state_path(state.run_id).write_text(json.dumps(state.to_dict(), indent=2), encoding="utf-8")
 
 
@@ -149,6 +152,8 @@ def _parse_run_payload() -> dict[str, Any]:
     upload_id = str(payload.get("upload_id") or "").strip()
     upload_storage_path = str(payload.get("upload_storage_path") or payload.get("storage_path") or "").strip()
     filename = str(payload.get("filename") or "").strip()
+    size_bytes = payload.get("size_bytes")
+    content_type = payload.get("content_type")
     if upload_id or upload_storage_path:
         if not upload_id:
             raise APIError("validation_error", "upload_id is required.", details={"field": "upload_id"})
@@ -163,6 +168,8 @@ def _parse_run_payload() -> dict[str, Any]:
             "filename": filename,
             "required_columns": required_columns,
             "target_crs": target_crs,
+            "size_bytes": int(size_bytes) if size_bytes not in (None, "") else None,
+            "content_type": str(content_type).strip() if content_type else None,
         }
 
     input_path = str(payload.get("input_path") or "").strip()
@@ -239,7 +246,8 @@ def _landing_page_html() -> str:
     storage_status = "Supabase configured" if config.supabase_url and config.supabase_service_role_key else "Local fallback"
     api_status = "Protected" if has_api_key else "Open for setup"
     openai_status = "Configured" if has_openai_key else "Not configured"
-    max_upload = config.max_upload_mb
+    max_upload = config.large_file_max_upload_mb if config.large_file_mode else config.max_upload_mb
+    upload_mode = "Direct Supabase upload" if config.supabase_url and config.supabase_service_role_key else "Local fallback upload"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -306,6 +314,7 @@ def _landing_page_html() -> str:
           <div>
             <h3>Accepted inputs</h3>
             <p class="small">GeoJSON, GeoPackage, or zipped shapefile. Max upload: {max_upload} MB.</p>
+            <p class="small">Upload mode: {upload_mode}.</p>
           </div>
           <div>
             <h3>Production flow</h3>
@@ -359,6 +368,8 @@ def _landing_page_html() -> str:
         </div>
         <h3>Downloads</h3>
         <div id="artifacts" class="artifacts"><p class="small">Artifacts appear after the worker completes the run.</p></div>
+        <h3>Recent Runs</h3>
+        <div id="recentRuns"><p class="small">Recent production runs load after page startup.</p></div>
       </div>
     </section>
 
@@ -412,6 +423,52 @@ def _landing_page_html() -> str:
       }}
       $("artifacts").innerHTML = links.length ? links.join("") : "<p class='small'>No downloadable artifacts yet.</p>";
     }}
+    async function loadRecentRuns() {{
+      const response = await fetch("/api/v1/runs?limit=5", {{ headers: headers() }});
+      if (!response.ok) return;
+      const payload = await response.json();
+      const rows = payload.runs || [];
+      if (!rows.length) {{
+        $("recentRuns").innerHTML = "<p class='small'>No production runs yet.</p>";
+        return;
+      }}
+      $("recentRuns").innerHTML = rows.map((run) => `<p class="small"><strong>${{run.filename || run.run_id}}</strong><br>${{run.status}} · ${{run.readiness_band || "pending"}} · <button class="secondary" onclick="openRun('${{run.run_id}}')">Open</button></p>`).join("");
+    }}
+    async function openRun(runId) {{
+      currentRunId = runId;
+      $("refreshRun").disabled = false;
+      await refreshRun();
+    }}
+    async function uploadDatasetFile(file) {{
+      const initResponse = await fetch("/api/v1/uploads/init", {{
+        method: "POST",
+        headers: headers(true),
+        body: JSON.stringify({{ filename: file.name, size_bytes: file.size, content_type: file.type || "application/octet-stream" }})
+      }});
+      const session = await readJson(initResponse);
+      if (!session.direct_upload) {{
+        const form = new FormData();
+        form.append("file", file);
+        const uploadResponse = await fetch(session.fallback_upload_url || "/api/v1/uploads", {{ method: "POST", headers: headers(), body: form }});
+        return await readJson(uploadResponse);
+      }}
+      setMessage("Uploading directly to Supabase Storage...");
+      const uploadHeaders = session.upload_headers || {{}};
+      const uploadResponse = await fetch(session.upload_url, {{ method: session.upload_method || "PUT", headers: uploadHeaders, body: file }});
+      if (!uploadResponse.ok) throw new Error("Direct storage upload failed.");
+      const completeResponse = await fetch("/api/v1/uploads/complete", {{
+        method: "POST",
+        headers: headers(true),
+        body: JSON.stringify({{
+          upload_id: session.upload_id,
+          filename: session.filename,
+          storage_path: session.storage_path,
+          size_bytes: file.size,
+          content_type: file.type || "application/octet-stream"
+        }})
+      }});
+      return await readJson(completeResponse);
+    }}
     async function refreshRun() {{
       if (!currentRunId) return;
       const response = await fetch(`/api/v1/runs/${{currentRunId}}`, {{ headers: headers() }});
@@ -434,11 +491,8 @@ def _landing_page_html() -> str:
         const file = $("dataset").files[0];
         if (!file) throw new Error("Choose a dataset file first.");
         $("submitRun").disabled = true;
-        setMessage("Uploading dataset...");
-        const form = new FormData();
-        form.append("file", file);
-        const uploadResponse = await fetch("/api/v1/uploads", {{ method: "POST", headers: headers(), body: form }});
-        const upload = await readJson(uploadResponse);
+        setMessage("Preparing upload...");
+        const upload = await uploadDatasetFile(file);
         setMessage("Upload complete. Queueing QA run...");
         const requiredColumns = $("requiredColumns").value.split(",").map((value) => value.trim()).filter(Boolean);
         const targetCrs = $("targetCrs").value.trim() || null;
@@ -459,6 +513,7 @@ def _landing_page_html() -> str:
         $("refreshRun").disabled = false;
         renderRun(run);
         setMessage("Run queued. Worker will process it asynchronously.");
+        await loadRecentRuns();
         clearInterval(pollTimer);
         pollTimer = setInterval(refreshRun, 3000);
       }} catch (error) {{
@@ -467,6 +522,7 @@ def _landing_page_html() -> str:
         $("submitRun").disabled = false;
       }}
     }});
+    loadRecentRuns();
   </script>
 </body>
 </html>"""
@@ -547,8 +603,50 @@ def config() -> Any:
             "upload_bucket": runtime.upload_bucket,
             "artifact_bucket": runtime.artifact_bucket,
             "max_upload_mb": runtime.max_upload_mb,
+            "large_file_mode": runtime.large_file_mode,
+            "large_file_max_upload_mb": runtime.large_file_max_upload_mb,
+            "active_max_upload_mb": runtime.large_file_max_upload_mb if runtime.large_file_mode else runtime.max_upload_mb,
+            "worker_id": runtime.worker_id,
+            "worker_stale_after_seconds": runtime.worker_stale_after_seconds,
+            "worker_max_attempts": runtime.worker_max_attempts,
         }
     )
+
+
+@app.post("/api/v1/uploads/init")
+def init_upload() -> Any:
+    payload = request.get_json(silent=True) or {}
+    filename = str(payload.get("filename") or "").strip()
+    content_type = str(payload.get("content_type") or "application/octet-stream").strip()
+    try:
+        size_bytes = int(payload.get("size_bytes") or 0)
+    except (TypeError, ValueError) as exc:
+        raise APIError("validation_error", "size_bytes must be an integer.", details={"field": "size_bytes"}) from exc
+    try:
+        session = _production_store().create_upload_session(filename=filename, size_bytes=size_bytes, content_type=content_type)
+    except ProductionStoreError as exc:
+        raise _store_error(exc) from exc
+    return _response(session, status_code=201)
+
+
+@app.post("/api/v1/uploads/complete")
+def complete_upload() -> Any:
+    payload = request.get_json(silent=True) or {}
+    try:
+        size_bytes = int(payload.get("size_bytes") or 0)
+    except (TypeError, ValueError) as exc:
+        raise APIError("validation_error", "size_bytes must be an integer.", details={"field": "size_bytes"}) from exc
+    try:
+        upload = _production_store().complete_upload(
+            upload_id=str(payload.get("upload_id") or "").strip(),
+            filename=str(payload.get("filename") or "").strip(),
+            storage_path=str(payload.get("storage_path") or "").strip(),
+            size_bytes=size_bytes,
+            content_type=str(payload.get("content_type") or "application/octet-stream").strip(),
+        )
+    except ProductionStoreError as exc:
+        raise _store_error(exc) from exc
+    return _response(upload)
 
 
 @app.post("/api/v1/uploads")
@@ -579,6 +677,8 @@ def create_run() -> Any:
                 upload_storage_path=parsed["upload_storage_path"],
                 required_columns=parsed["required_columns"],
                 target_crs=parsed["target_crs"],
+                size_bytes=parsed.get("size_bytes"),
+                content_type=parsed.get("content_type"),
             )
         except ProductionStoreError as exc:
             raise _store_error(exc) from exc

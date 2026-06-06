@@ -30,7 +30,12 @@ class AppConfig:
     upload_bucket: str
     artifact_bucket: str
     max_upload_mb: int
+    large_file_mode: bool
+    large_file_max_upload_mb: int
     worker_poll_seconds: float
+    worker_id: str
+    worker_stale_after_seconds: int
+    worker_max_attempts: int
     env_file: str | None = None
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -93,11 +98,30 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
         default=100,
         minimum=1,
     )
+    large_file_mode = _parse_bool(env_values.get("GEOQA_LARGE_FILE_MODE"), default=False)
+    large_file_max_upload_mb = _parse_int(
+        env_values.get("GEOQA_LARGE_FILE_MAX_UPLOAD_MB"),
+        name="GEOQA_LARGE_FILE_MAX_UPLOAD_MB",
+        default=1024,
+        minimum=1,
+    )
     worker_poll_seconds = _parse_float(
         env_values.get("GEOQA_WORKER_POLL_SECONDS"),
         name="GEOQA_WORKER_POLL_SECONDS",
         default=5.0,
         minimum=0.1,
+    )
+    worker_stale_after_seconds = _parse_int(
+        env_values.get("GEOQA_WORKER_STALE_AFTER_SECONDS"),
+        name="GEOQA_WORKER_STALE_AFTER_SECONDS",
+        default=900,
+        minimum=1,
+    )
+    worker_max_attempts = _parse_int(
+        env_values.get("GEOQA_WORKER_MAX_ATTEMPTS"),
+        name="GEOQA_WORKER_MAX_ATTEMPTS",
+        default=3,
+        minimum=1,
     )
     return AppConfig(
         openai_api_key=env_values.get("OPENAI_API_KEY"),
@@ -114,7 +138,12 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
         upload_bucket=env_values.get("GEOQA_UPLOAD_BUCKET", "geoqa-uploads").strip() or "geoqa-uploads",
         artifact_bucket=env_values.get("GEOQA_ARTIFACT_BUCKET", "geoqa-artifacts").strip() or "geoqa-artifacts",
         max_upload_mb=max_upload_mb,
+        large_file_mode=large_file_mode,
+        large_file_max_upload_mb=large_file_max_upload_mb,
         worker_poll_seconds=worker_poll_seconds,
+        worker_id=env_values.get("GEOQA_WORKER_ID", "geoqa-worker").strip() or "geoqa-worker",
+        worker_stale_after_seconds=worker_stale_after_seconds,
+        worker_max_attempts=worker_max_attempts,
         env_file=str(resolved_env) if resolved_env else None,
     )
 
@@ -140,7 +169,12 @@ def diagnose_config(config: AppConfig) -> dict[str, Any]:
             "upload_bucket": config.upload_bucket,
             "artifact_bucket": config.artifact_bucket,
             "max_upload_mb": config.max_upload_mb,
+            "large_file_mode": config.large_file_mode,
+            "large_file_max_upload_mb": config.large_file_max_upload_mb,
             "worker_poll_seconds": config.worker_poll_seconds,
+            "worker_id": config.worker_id,
+            "worker_stale_after_seconds": config.worker_stale_after_seconds,
+            "worker_max_attempts": config.worker_max_attempts,
         },
         "issues": issues,
     }

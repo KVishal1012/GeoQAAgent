@@ -24,12 +24,9 @@ Set these environment variables in Vercel:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GEOQA_UPLOAD_BUCKET`
 - `GEOQA_ARTIFACT_BUCKET`
-- `GEOQA_WORKER_POLL_SECONDS`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GEOQA_UPLOAD_BUCKET`
-- `GEOQA_ARTIFACT_BUCKET`
 - `GEOQA_MAX_UPLOAD_MB`
+- `GEOQA_LARGE_FILE_MODE`
+- `GEOQA_LARGE_FILE_MAX_UPLOAD_MB`
 
 Optional for live agent workflows:
 
@@ -47,6 +44,9 @@ Set these environment variables on the Streamlit host:
 - `GEOQA_UPLOAD_BUCKET`
 - `GEOQA_ARTIFACT_BUCKET`
 - `GEOQA_WORKER_POLL_SECONDS`
+- `GEOQA_WORKER_ID`
+- `GEOQA_WORKER_STALE_AFTER_SECONDS`
+- `GEOQA_WORKER_MAX_ATTEMPTS`
 - `OPENAI_API_KEY` when live agent mode is enabled
 - `GEOQA_LLM_MODEL` when live agent mode is enabled
 
@@ -96,6 +96,8 @@ Before calling a deployment V1-ready:
 - full test suite passes
 - Vercel upload UI and health/config endpoints work
 - authenticated upload and run routes work
-- worker processes a queued upload run
+- worker claims and processes a queued upload run
+- stale running jobs can be reclaimed
+- large-file mode is enabled only with Supabase configured
 - Streamlit demo flow works end to end
 - demo output includes deterministic artifacts, agent artifacts, review status, and handoff bundle
