@@ -60,7 +60,7 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
     for key, value in file_values.items():
         env_values.setdefault(key, value)
 
-    output_root = env_values.get("GEOQA_OUTPUT_ROOT", "outputs").strip() or "outputs"
+    output_root = _default_output_root(env_values)
     agent_report_enabled = _parse_bool(env_values.get("GEOQA_AGENT_REPORT_ENABLED"), default=True)
     openai_timeout_seconds = _parse_float(
         env_values.get("GEOQA_OPENAI_TIMEOUT_SECONDS"),
@@ -178,6 +178,15 @@ def diagnose_config(config: AppConfig) -> dict[str, Any]:
         },
         "issues": issues,
     }
+
+
+def _default_output_root(env_values: dict[str, str]) -> str:
+    configured = env_values.get("GEOQA_OUTPUT_ROOT")
+    if configured and configured.strip():
+        return configured.strip()
+    if env_values.get("VERCEL"):
+        return "/tmp/geoqa-outputs"
+    return "outputs"
 
 
 def _load_env_file(env_file: str | None) -> tuple[Path | None, dict[str, str]]:

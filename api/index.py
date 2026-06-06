@@ -69,7 +69,12 @@ def _production_store():
 
 
 def _output_root() -> Path:
-    return Path(os.getenv("GEOQA_OUTPUT_ROOT", "outputs")).resolve()
+    configured = os.getenv("GEOQA_OUTPUT_ROOT")
+    if configured and configured.strip():
+        return Path(configured).resolve()
+    if os.getenv("VERCEL"):
+        return Path("/tmp/geoqa-outputs").resolve()
+    return Path("outputs").resolve()
 
 
 def _state_root() -> Path:

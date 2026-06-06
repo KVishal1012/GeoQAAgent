@@ -102,3 +102,12 @@ def test_load_app_config_reads_production_mvp_settings(monkeypatch):
     assert config.worker_stale_after_seconds == 60
     assert config.worker_max_attempts == 5
     assert config.to_safe_dict()["supabase_service_role_key"] == "***configured***"
+
+
+def test_load_app_config_uses_tmp_output_root_on_vercel(monkeypatch):
+    monkeypatch.delenv("GEOQA_OUTPUT_ROOT", raising=False)
+    monkeypatch.setenv("VERCEL", "1")
+
+    config = load_app_config()
+
+    assert config.output_root == "/tmp/geoqa-outputs"

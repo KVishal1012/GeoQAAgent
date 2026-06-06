@@ -321,3 +321,21 @@ def test_vercel_config_exposes_v11_runtime_controls(monkeypatch, tmp_path):
     assert payload["active_max_upload_mb"] == 1024
     assert payload["worker_stale_after_seconds"] == 30
     assert payload["worker_max_attempts"] == 4
+
+
+def test_vercel_runtime_upload_init_uses_tmp_fallback(monkeypatch):
+    monkeypatch.delenv("GEOQA_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+    monkeypatch.setenv("VERCEL", "1")
+
+    client = app.test_client()
+    response = client.post(
+        "/api/v1/uploads/init",
+        json={"filename": "roads.geojson", "size_bytes": 128, "content_type": "application/geo+json"},
+    )
+
+    assert response.status_code == 201
+    payload = response.get_json()
+    assert payload["direct_upload"] is False
+    assert "geoqa-outputs/production_mvp/uploads" in payload["storage_path"]
