@@ -57,6 +57,23 @@ def test_vercel_api_health_and_config_are_public(monkeypatch, tmp_path):
     assert "request_id" in config.get_json()
 
 
+def test_vercel_root_renders_operator_ui(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+    monkeypatch.delenv("GEOQA_API_KEY", raising=False)
+
+    client = app.test_client()
+
+    response = client.get("/")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert response.content_type.startswith("text/html")
+    assert "GeoQA Agent" in body
+    assert "Dataset readiness QA" in body
+    assert "POST /api/v1/runs" in body
+    assert "Deployment Status" in body
+
+
 def test_vercel_api_requires_api_key_for_v1_routes(monkeypatch, tmp_path):
     monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
     monkeypatch.setenv("GEOQA_API_KEY", "test-key")

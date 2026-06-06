@@ -9,9 +9,9 @@ This repo includes a Vercel Python API backend using:
 
 Public endpoints:
 
-- `GET /`
-- `GET /health`
-- `GET /config`
+- `GET /` renders the lightweight Vercel landing UI
+- `GET /health` returns JSON health status
+- `GET /config` returns JSON runtime visibility
 
 Authenticated API endpoints:
 
@@ -47,15 +47,16 @@ Optional:
 
 ## Verification checklist
 
-1. `GET /health` returns `{"status": "healthy"}`.
-2. `GET /config` returns runtime visibility plus `request_id`.
-3. `POST /api/v1/runs` without `x-api-key` returns `401` with:
+1. `GET /` renders the GeoQA Agent landing UI.
+2. `GET /health` returns `{"status": "healthy"}`.
+3. `GET /config` returns runtime visibility plus `request_id`.
+4. `POST /api/v1/runs` without `x-api-key` returns `401` with:
    - `error.code = unauthorized`
-4. `POST /api/v1/runs` with valid `x-api-key` returns `202` and:
+5. `POST /api/v1/runs` with valid `x-api-key` returns `202` and:
    - `run_id`
    - `status = queued`
-5. Poll `GET /api/v1/runs/{run_id}` until completed.
-6. Confirm `GET /api/v1/runs/{run_id}/artifacts` returns artifact manifest metadata.
+6. Poll `GET /api/v1/runs/{run_id}` until completed.
+7. Confirm `GET /api/v1/runs/{run_id}/artifacts` returns artifact manifest metadata.
 
 ## Error envelope contract
 

@@ -378,6 +378,8 @@ Available routes include:
 
 Notes:
 
+- `/` renders a lightweight Vercel landing UI for deployment status and API navigation.
+- `/health` and `/config` remain public JSON endpoints for deployment checks.
 - `/api/v1/*` requires `x-api-key` when `GEOQA_API_KEY` is configured.
 - Run processing follows `queued -> running -> completed|failed`.
 - Streamlit remains the primary local/stateful operator console in this phase.

@@ -175,6 +175,120 @@ def _error_response(error: APIError) -> Response:
     )
 
 
+def _landing_page_html() -> str:
+    has_api_key = bool(os.getenv("GEOQA_API_KEY"))
+    has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
+    llm_model = os.getenv("GEOQA_LLM_MODEL") or "not configured"
+    output_root = str(_output_root())
+    api_status = "Protected" if has_api_key else "Open for setup"
+    openai_status = "Configured" if has_openai_key else "Not configured"
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoQA Agent</title>
+  <style>
+    :root {{
+      --ink: #17201b;
+      --muted: #5d6b63;
+      --line: #d8dfd8;
+      --panel: #ffffff;
+      --field: #f4f7f2;
+      --accent: #1f7a5a;
+      --accent-ink: #0d3d2d;
+      --warn: #9a5b13;
+      --bg: #eef3ec;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(31,122,90,.10), transparent 34%),
+        linear-gradient(180deg, #fbfcf9 0%, var(--bg) 100%);
+    }}
+    main {{ width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }}
+    .mast {{ display: grid; grid-template-columns: 1.5fr .9fr; gap: 28px; align-items: stretch; }}
+    h1 {{ margin: 0; font-size: clamp(34px, 5vw, 68px); line-height: 1; letter-spacing: 0; }}
+    h2 {{ margin: 0 0 14px; font-size: 18px; }}
+    p {{ margin: 0; color: var(--muted); line-height: 1.6; }}
+    .lead {{ margin-top: 18px; font-size: 18px; max-width: 760px; }}
+    .panel {{ background: rgba(255,255,255,.86); border: 1px solid var(--line); border-radius: 8px; padding: 22px; box-shadow: 0 18px 60px rgba(23,32,27,.08); }}
+    .status-grid {{ display: grid; gap: 12px; margin-top: 18px; }}
+    .status {{ display: flex; justify-content: space-between; gap: 16px; border: 1px solid var(--line); background: var(--field); padding: 12px 14px; border-radius: 6px; }}
+    .label {{ color: var(--muted); }}
+    .value {{ color: var(--accent-ink); font-weight: 700; text-align: right; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }}
+    a.button {{ color: white; background: var(--accent); text-decoration: none; padding: 11px 14px; border-radius: 6px; font-weight: 700; }}
+    a.button.secondary {{ color: var(--accent-ink); background: #dcebe4; }}
+    .sections {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }}
+    .step {{ border-top: 3px solid var(--accent); }}
+    code {{ display: inline-block; max-width: 100%; overflow-wrap: anywhere; color: var(--accent-ink); background: #e8efe8; border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; }}
+    ul {{ margin: 12px 0 0; padding-left: 18px; color: var(--muted); line-height: 1.7; }}
+    .note {{ margin-top: 24px; color: var(--warn); }}
+    @media (max-width: 820px) {{
+      main {{ padding: 28px 0; }}
+      .mast, .sections {{ grid-template-columns: 1fr; }}
+      h1 {{ font-size: 42px; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="mast">
+      <div class="panel">
+        <h1>GeoQA Agent</h1>
+        <p class="lead">Dataset readiness QA for geospatial teams. Run deterministic checks, keep evidence artifacts, and use a grounded agent workflow for review-ready handoffs.</p>
+        <div class="actions">
+          <a class="button" href="/health">Health</a>
+          <a class="button secondary" href="/config">Config</a>
+        </div>
+      </div>
+      <aside class="panel">
+        <h2>Deployment Status</h2>
+        <div class="status-grid">
+          <div class="status"><span class="label">API</span><span class="value">Online</span></div>
+          <div class="status"><span class="label">API key</span><span class="value">{api_status}</span></div>
+          <div class="status"><span class="label">OpenAI</span><span class="value">{openai_status}</span></div>
+          <div class="status"><span class="label">Model</span><span class="value">{llm_model}</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="sections">
+      <div class="panel step">
+        <h2>1. Submit A Run</h2>
+        <p>Use <code>POST /api/v1/runs</code> to queue a dataset readiness check.</p>
+      </div>
+      <div class="panel step">
+        <h2>2. Review Evidence</h2>
+        <p>Poll <code>GET /api/v1/runs/&lt;id&gt;</code> and inspect generated QA artifacts.</p>
+      </div>
+      <div class="panel step">
+        <h2>3. Handoff</h2>
+        <p>Use artifact metadata and review state to support downstream team handoff.</p>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top: 18px;">
+      <h2>Available API Routes</h2>
+      <ul>
+        <li><code>GET /health</code></li>
+        <li><code>GET /config</code></li>
+        <li><code>POST /api/v1/runs</code></li>
+        <li><code>GET /api/v1/runs/&lt;run_id&gt;</code></li>
+        <li><code>POST /api/v1/runs/&lt;run_id&gt;/review</code></li>
+        <li><code>GET /api/v1/runs/&lt;run_id&gt;/artifacts</code></li>
+      </ul>
+      <p class="note">Output root: <code>{output_root}</code>. For full analyst UI workflows, run the Streamlit console on a stateful host.</p>
+    </section>
+  </main>
+</body>
+</html>"""
+
+
 def _artifact_manifest(output_dir: Path) -> dict[str, Any]:
     artifact_map = {
         "qa_report": output_dir / "qa_report.md",
@@ -227,22 +341,7 @@ def _handle_unexpected_error(error: Exception) -> Response:
 
 @app.get("/")
 def root() -> Any:
-    return _response(
-        {
-            "service": "GeoQA Agent",
-            "status": "ok",
-            "mode": "vercel_api_v1",
-            "endpoints": [
-                "/",
-                "/health",
-                "/config",
-                "/api/v1/runs",
-                "/api/v1/runs/{run_id}",
-                "/api/v1/runs/{run_id}/review",
-                "/api/v1/runs/{run_id}/artifacts",
-            ],
-        }
-    )
+    return Response(_landing_page_html(), mimetype="text/html")
 
 
 @app.get("/health")
