@@ -11,6 +11,8 @@ from typing import Any
 
 from flask import Flask, Response, g, jsonify, request
 
+from geoqa.config import load_app_config
+from geoqa.production.store import ProductionStoreError, build_production_store
 from geoqa.reporting.agent_report_generator import read_agent_review_status, review_existing_agent_report
 from geoqa.runner import run_geoqa
 
@@ -56,6 +58,14 @@ def _new_request_id() -> str:
     return request.headers.get("x-request-id") or f"req-{uuid.uuid4().hex[:12]}"
 
 
+def _runtime_config():
+    return load_app_config()
+
+
+def _production_store():
+    return build_production_store(_runtime_config())
+
+
 def _output_root() -> Path:
     return Path(os.getenv("GEOQA_OUTPUT_ROOT", "outputs")).resolve()
 
@@ -83,6 +93,14 @@ def _read_state(run_id: str) -> RunState:
     return RunState(**payload)
 
 
+def _read_state_or_none(run_id: str) -> RunState | None:
+    path = _run_state_path(run_id)
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return RunState(**payload)
+
+
 def _update_state(run_id: str, **updates: Any) -> RunState:
     state = _read_state(run_id)
     payload = state.to_dict()
@@ -105,25 +123,56 @@ def _validate_api_key() -> None:
         raise APIError("unauthorized", "Missing or invalid API key.", status_code=401)
 
 
-def _parse_run_payload() -> tuple[str, list[str], str | None]:
-    payload = request.get_json(silent=True) or {}
-    input_path = str(payload.get("input_path") or "").strip()
-    if not input_path:
-        raise APIError("validation_error", "input_path is required.", details={"field": "input_path"})
-    if not Path(input_path).exists():
-        raise APIError("input_not_found", f"input_path does not exist: {input_path}", status_code=404)
-
-    raw_columns = payload.get("required_columns") or []
+def _parse_required_columns(raw_columns: Any) -> list[str]:
+    if raw_columns in (None, ""):
+        return []
+    if isinstance(raw_columns, str):
+        return [value.strip() for value in raw_columns.split(",") if value.strip()]
     if not isinstance(raw_columns, list):
         raise APIError("validation_error", "required_columns must be a list of strings.", details={"field": "required_columns"})
-    required_columns = [str(value).strip() for value in raw_columns if str(value).strip()]
+    return [str(value).strip() for value in raw_columns if str(value).strip()]
 
-    target_crs_value = payload.get("target_crs")
-    target_crs = str(target_crs_value).strip() if target_crs_value is not None else None
-    if target_crs == "":
-        target_crs = None
 
-    return input_path, required_columns, target_crs
+def _parse_target_crs(raw_value: Any) -> str | None:
+    target_crs = str(raw_value).strip() if raw_value is not None else None
+    return target_crs or None
+
+
+def _parse_run_payload() -> dict[str, Any]:
+    payload = request.get_json(silent=True) or {}
+    required_columns = _parse_required_columns(payload.get("required_columns") or [])
+    target_crs = _parse_target_crs(payload.get("target_crs"))
+
+    upload_id = str(payload.get("upload_id") or "").strip()
+    upload_storage_path = str(payload.get("upload_storage_path") or payload.get("storage_path") or "").strip()
+    filename = str(payload.get("filename") or "").strip()
+    if upload_id or upload_storage_path:
+        if not upload_id:
+            raise APIError("validation_error", "upload_id is required.", details={"field": "upload_id"})
+        if not upload_storage_path:
+            raise APIError("validation_error", "upload_storage_path is required.", details={"field": "upload_storage_path"})
+        if not filename:
+            raise APIError("validation_error", "filename is required.", details={"field": "filename"})
+        return {
+            "mode": "uploaded",
+            "upload_id": upload_id,
+            "upload_storage_path": upload_storage_path,
+            "filename": filename,
+            "required_columns": required_columns,
+            "target_crs": target_crs,
+        }
+
+    input_path = str(payload.get("input_path") or "").strip()
+    if not input_path:
+        raise APIError("validation_error", "input_path or uploaded file metadata is required.", details={"field": "input_path"})
+    if not Path(input_path).exists():
+        raise APIError("input_not_found", f"input_path does not exist: {input_path}", status_code=404)
+    return {
+        "mode": "local_input_path",
+        "input_path": input_path,
+        "required_columns": required_columns,
+        "target_crs": target_crs,
+    }
 
 
 def _launch_run_async(run_id: str) -> None:
@@ -175,30 +224,36 @@ def _error_response(error: APIError) -> Response:
     )
 
 
+def _store_error(exc: ProductionStoreError, *, status_code: int = 400) -> APIError:
+    return APIError("production_store_error", str(exc), status_code=status_code)
+
+
 def _landing_page_html() -> str:
+    config = _runtime_config()
     has_api_key = bool(os.getenv("GEOQA_API_KEY"))
     has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
     llm_model = os.getenv("GEOQA_LLM_MODEL") or "not configured"
-    output_root = str(_output_root())
+    storage_status = "Supabase configured" if config.supabase_url and config.supabase_service_role_key else "Local fallback"
     api_status = "Protected" if has_api_key else "Open for setup"
     openai_status = "Configured" if has_openai_key else "Not configured"
+    max_upload = config.max_upload_mb
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GeoQA Agent</title>
+  <title>GeoQA Agent Upload</title>
   <style>
     :root {{
-      --ink: #17201b;
-      --muted: #5d6b63;
-      --line: #d8dfd8;
-      --panel: #ffffff;
-      --field: #f4f7f2;
-      --accent: #1f7a5a;
-      --accent-ink: #0d3d2d;
-      --warn: #9a5b13;
-      --bg: #eef3ec;
+      --ink: #16221c;
+      --muted: #627268;
+      --line: #d7dfd8;
+      --panel: #fffef9;
+      --field: #f3f7f0;
+      --accent: #226b4f;
+      --accent-2: #d87c36;
+      --bad: #9d3328;
+      --bg: #eef3ea;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -206,44 +261,53 @@ def _landing_page_html() -> str:
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--ink);
       background:
-        linear-gradient(135deg, rgba(31,122,90,.10), transparent 34%),
-        linear-gradient(180deg, #fbfcf9 0%, var(--bg) 100%);
+        radial-gradient(circle at 8% 0%, rgba(216,124,54,.16), transparent 30%),
+        linear-gradient(180deg, #fbfcf8 0%, var(--bg) 100%);
     }}
-    main {{ width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }}
-    .mast {{ display: grid; grid-template-columns: 1.5fr .9fr; gap: 28px; align-items: stretch; }}
-    h1 {{ margin: 0; font-size: clamp(34px, 5vw, 68px); line-height: 1; letter-spacing: 0; }}
-    h2 {{ margin: 0 0 14px; font-size: 18px; }}
-    p {{ margin: 0; color: var(--muted); line-height: 1.6; }}
-    .lead {{ margin-top: 18px; font-size: 18px; max-width: 760px; }}
-    .panel {{ background: rgba(255,255,255,.86); border: 1px solid var(--line); border-radius: 8px; padding: 22px; box-shadow: 0 18px 60px rgba(23,32,27,.08); }}
-    .status-grid {{ display: grid; gap: 12px; margin-top: 18px; }}
-    .status {{ display: flex; justify-content: space-between; gap: 16px; border: 1px solid var(--line); background: var(--field); padding: 12px 14px; border-radius: 6px; }}
+    main {{ width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 46px; }}
+    .hero {{ display: grid; grid-template-columns: 1.15fr .85fr; gap: 20px; align-items: stretch; }}
+    .panel {{ background: rgba(255,254,249,.92); border: 1px solid var(--line); border-radius: 14px; padding: 22px; box-shadow: 0 18px 54px rgba(22,34,28,.08); }}
+    h1 {{ margin: 0; font-size: clamp(36px, 5.4vw, 72px); line-height: .96; letter-spacing: -.04em; }}
+    h2 {{ margin: 0 0 12px; font-size: 18px; }}
+    h3 {{ margin: 20px 0 8px; font-size: 15px; }}
+    p {{ color: var(--muted); line-height: 1.55; }}
+    .lead {{ margin: 16px 0 0; font-size: 18px; max-width: 780px; }}
+    .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }}
+    .status-grid {{ display: grid; gap: 10px; }}
+    .status {{ display: flex; justify-content: space-between; gap: 12px; padding: 11px 12px; border-radius: 10px; background: var(--field); border: 1px solid var(--line); }}
     .label {{ color: var(--muted); }}
-    .value {{ color: var(--accent-ink); font-weight: 700; text-align: right; }}
-    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }}
-    a.button {{ color: white; background: var(--accent); text-decoration: none; padding: 11px 14px; border-radius: 6px; font-weight: 700; }}
-    a.button.secondary {{ color: var(--accent-ink); background: #dcebe4; }}
-    .sections {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }}
-    .step {{ border-top: 3px solid var(--accent); }}
-    code {{ display: inline-block; max-width: 100%; overflow-wrap: anywhere; color: var(--accent-ink); background: #e8efe8; border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; }}
-    ul {{ margin: 12px 0 0; padding-left: 18px; color: var(--muted); line-height: 1.7; }}
-    .note {{ margin-top: 24px; color: var(--warn); }}
-    @media (max-width: 820px) {{
-      main {{ padding: 28px 0; }}
-      .mast, .sections {{ grid-template-columns: 1fr; }}
-      h1 {{ font-size: 42px; }}
-    }}
+    .value {{ color: var(--accent); font-weight: 750; text-align: right; }}
+    label {{ display: block; color: var(--ink); font-weight: 720; margin: 13px 0 7px; }}
+    input, button {{ font: inherit; }}
+    input[type="text"], input[type="password"] {{ width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: white; color: var(--ink); }}
+    input[type="file"] {{ width: 100%; border: 1px dashed var(--accent); border-radius: 12px; padding: 18px; background: #f8fbf4; }}
+    button {{ border: 0; border-radius: 11px; padding: 12px 15px; background: var(--accent); color: white; font-weight: 800; cursor: pointer; }}
+    button.secondary {{ background: #dfeae2; color: var(--accent); }}
+    button:disabled {{ opacity: .55; cursor: not-allowed; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }}
+    .message {{ min-height: 24px; margin-top: 12px; font-weight: 700; color: var(--accent); }}
+    .message.error {{ color: var(--bad); }}
+    .artifacts a {{ display: inline-block; margin: 6px 8px 0 0; padding: 8px 10px; background: #e7efe7; color: var(--accent); text-decoration: none; border-radius: 9px; font-weight: 700; }}
+    pre {{ white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; border-radius: 10px; background: #14221b; color: #ecf5ec; max-height: 320px; overflow: auto; }}
+    .small {{ font-size: 13px; }}
+    @media (max-width: 860px) {{ .hero, .grid {{ grid-template-columns: 1fr; }} h1 {{ font-size: 42px; }} }}
   </style>
 </head>
 <body>
   <main>
-    <section class="mast">
+    <section class="hero">
       <div class="panel">
         <h1>GeoQA Agent</h1>
-        <p class="lead">Dataset readiness QA for geospatial teams. Run deterministic checks, keep evidence artifacts, and use a grounded agent workflow for review-ready handoffs.</p>
-        <div class="actions">
-          <a class="button" href="/health">Health</a>
-          <a class="button secondary" href="/config">Config</a>
+        <p class="lead">Dataset readiness QA for geospatial teams. Upload a geospatial dataset, queue a deterministic readiness check, and download an evidence-backed QA package.</p>
+        <div class="grid">
+          <div>
+            <h3>Accepted inputs</h3>
+            <p class="small">GeoJSON, GeoPackage, or zipped shapefile. Max upload: {max_upload} MB.</p>
+          </div>
+          <div>
+            <h3>Production flow</h3>
+            <p class="small">Vercel handles upload/status through <code>POST /api/v1/runs</code>. A Python worker processes queued GIS jobs.</p>
+          </div>
         </div>
       </div>
       <aside class="panel">
@@ -251,45 +315,153 @@ def _landing_page_html() -> str:
         <div class="status-grid">
           <div class="status"><span class="label">API</span><span class="value">Online</span></div>
           <div class="status"><span class="label">API key</span><span class="value">{api_status}</span></div>
+          <div class="status"><span class="label">Storage</span><span class="value">{storage_status}</span></div>
           <div class="status"><span class="label">OpenAI</span><span class="value">{openai_status}</span></div>
           <div class="status"><span class="label">Model</span><span class="value">{llm_model}</span></div>
         </div>
       </aside>
     </section>
 
-    <section class="sections">
-      <div class="panel step">
-        <h2>1. Submit A Run</h2>
-        <p>Use <code>POST /api/v1/runs</code> to queue a dataset readiness check.</p>
+    <section class="grid">
+      <div class="panel">
+        <h2>Upload Dataset</h2>
+        <label for="apiKey">API key, if configured</label>
+        <input id="apiKey" type="password" placeholder="Paste x-api-key for protected deployments" />
+        <label for="dataset">Dataset file</label>
+        <input id="dataset" type="file" accept=".geojson,.gpkg,.zip,application/zip" />
+        <label for="requiredColumns">Required columns, optional</label>
+        <input id="requiredColumns" type="text" placeholder="asset_id, road_name" />
+        <label for="targetCrs">Target CRS, optional</label>
+        <input id="targetCrs" type="text" placeholder="EPSG:4326" />
+        <div class="actions">
+          <button id="submitRun">Upload and queue QA</button>
+          <button id="refreshRun" class="secondary" disabled>Refresh status</button>
+        </div>
+        <div id="message" class="message"></div>
       </div>
-      <div class="panel step">
-        <h2>2. Review Evidence</h2>
-        <p>Poll <code>GET /api/v1/runs/&lt;id&gt;</code> and inspect generated QA artifacts.</p>
-      </div>
-      <div class="panel step">
-        <h2>3. Handoff</h2>
-        <p>Use artifact metadata and review state to support downstream team handoff.</p>
+      <div class="panel">
+        <h2>Run Status</h2>
+        <div class="status-grid">
+          <div class="status"><span class="label">Run ID</span><span id="runId" class="value">Not started</span></div>
+          <div class="status"><span class="label">Status</span><span id="runStatus" class="value">Waiting</span></div>
+          <div class="status"><span class="label">Readiness</span><span id="readiness" class="value">-</span></div>
+          <div class="status"><span class="label">Issues</span><span id="issues" class="value">-</span></div>
+        </div>
+        <h3>Downloads</h3>
+        <div id="artifacts" class="artifacts"><p class="small">Artifacts appear after the worker completes the run.</p></div>
       </div>
     </section>
 
-    <section class="panel" style="margin-top: 18px;">
-      <h2>Available API Routes</h2>
-      <ul>
-        <li><code>GET /health</code></li>
-        <li><code>GET /config</code></li>
-        <li><code>POST /api/v1/runs</code></li>
-        <li><code>GET /api/v1/runs/&lt;run_id&gt;</code></li>
-        <li><code>POST /api/v1/runs/&lt;run_id&gt;/review</code></li>
-        <li><code>GET /api/v1/runs/&lt;run_id&gt;/artifacts</code></li>
-      </ul>
-      <p class="note">Output root: <code>{output_root}</code>. For full analyst UI workflows, run the Streamlit console on a stateful host.</p>
+    <section class="panel" style="margin-top: 16px;">
+      <h2>Raw Run Response</h2>
+      <pre id="raw">{{}}</pre>
     </section>
   </main>
+  <script>
+    let currentRunId = null;
+    let pollTimer = null;
+    const $ = (id) => document.getElementById(id);
+    function headers(json = false) {{
+      const value = $("apiKey").value.trim();
+      const output = {{}};
+      if (value) output["x-api-key"] = value;
+      if (json) output["Content-Type"] = "application/json";
+      return output;
+    }}
+    function setMessage(text, isError = false) {{
+      $("message").textContent = text;
+      $("message").className = "message" + (isError ? " error" : "");
+    }}
+    async function readJson(response) {{
+      const payload = await response.json();
+      if (!response.ok) {{
+        const error = payload.error || {{}};
+        throw new Error(error.message || "Request failed");
+      }}
+      return payload;
+    }}
+    function renderRun(payload) {{
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      $("runId").textContent = payload.run_id || currentRunId || "Not started";
+      $("runStatus").textContent = payload.status || "unknown";
+      const band = payload.readiness_band || "-";
+      const score = payload.readiness_score ?? "-";
+      $("readiness").textContent = band === "-" ? "-" : `${{band}} (${{score}})`;
+      const counts = payload.issue_counts || {{}};
+      $("issues").textContent = counts.total ?? "-";
+    }}
+    async function loadArtifacts(runId) {{
+      const response = await fetch(`/api/v1/runs/${{runId}}/artifacts`, {{ headers: headers() }});
+      if (!response.ok) return;
+      const payload = await response.json();
+      const links = [];
+      for (const [name, artifact] of Object.entries(payload.artifacts || {{}})) {{
+        if (artifact.exists && artifact.url) {{
+          links.push(`<a href="${{artifact.url}}" target="_blank" rel="noopener">${{name}}</a>`);
+        }}
+      }}
+      $("artifacts").innerHTML = links.length ? links.join("") : "<p class='small'>No downloadable artifacts yet.</p>";
+    }}
+    async function refreshRun() {{
+      if (!currentRunId) return;
+      const response = await fetch(`/api/v1/runs/${{currentRunId}}`, {{ headers: headers() }});
+      const payload = await readJson(response);
+      renderRun(payload);
+      if (payload.status === "completed") {{
+        clearInterval(pollTimer);
+        await loadArtifacts(currentRunId);
+        setMessage("Run completed. Downloads are ready.");
+      }} else if (payload.status === "failed") {{
+        clearInterval(pollTimer);
+        setMessage(payload.error || "Run failed.", true);
+      }} else {{
+        setMessage("Run is queued or running. Keep this page open.");
+      }}
+    }}
+    $("refreshRun").addEventListener("click", refreshRun);
+    $("submitRun").addEventListener("click", async () => {{
+      try {{
+        const file = $("dataset").files[0];
+        if (!file) throw new Error("Choose a dataset file first.");
+        $("submitRun").disabled = true;
+        setMessage("Uploading dataset...");
+        const form = new FormData();
+        form.append("file", file);
+        const uploadResponse = await fetch("/api/v1/uploads", {{ method: "POST", headers: headers(), body: form }});
+        const upload = await readJson(uploadResponse);
+        setMessage("Upload complete. Queueing QA run...");
+        const requiredColumns = $("requiredColumns").value.split(",").map((value) => value.trim()).filter(Boolean);
+        const targetCrs = $("targetCrs").value.trim() || null;
+        const runResponse = await fetch("/api/v1/runs", {{
+          method: "POST",
+          headers: headers(true),
+          body: JSON.stringify({{
+            upload_id: upload.upload_id,
+            upload_storage_path: upload.storage_path,
+            filename: upload.filename,
+            required_columns: requiredColumns,
+            target_crs: targetCrs
+          }})
+        }});
+        const run = await readJson(runResponse);
+        currentRunId = run.run_id;
+        $("refreshRun").disabled = false;
+        renderRun(run);
+        setMessage("Run queued. Worker will process it asynchronously.");
+        clearInterval(pollTimer);
+        pollTimer = setInterval(refreshRun, 3000);
+      }} catch (error) {{
+        setMessage(error.message, true);
+      }} finally {{
+        $("submitRun").disabled = false;
+      }}
+    }});
+  </script>
 </body>
 </html>"""
 
 
-def _artifact_manifest(output_dir: Path) -> dict[str, Any]:
+def _artifact_manifest(output_dir: Path, run_id: str | None = None) -> dict[str, Any]:
     artifact_map = {
         "qa_report": output_dir / "qa_report.md",
         "issues_csv": output_dir / "issues.csv",
@@ -311,10 +483,11 @@ def _artifact_manifest(output_dir: Path) -> dict[str, Any]:
     }
     artifacts: dict[str, Any] = {}
     for name, path in artifact_map.items():
+        exists = path.exists()
         artifacts[name] = {
             "path": str(path),
-            "exists": path.exists(),
-            "url": None,
+            "exists": exists,
+            "url": f"/api/v1/runs/{run_id}/artifacts/{name}/download" if exists and run_id else None,
         }
     return artifacts
 
@@ -351,6 +524,7 @@ def health() -> Any:
 
 @app.get("/config")
 def config() -> Any:
+    runtime = _runtime_config()
     return _response(
         {
             "agent_report_enabled": os.getenv("GEOQA_AGENT_REPORT_ENABLED", "true"),
@@ -358,21 +532,63 @@ def config() -> Any:
             "llm_model": os.getenv("GEOQA_LLM_MODEL"),
             "output_root": str(_output_root()),
             "has_api_key": bool(os.getenv("GEOQA_API_KEY")),
+            "supabase_configured": bool(runtime.supabase_url and runtime.supabase_service_role_key),
+            "upload_bucket": runtime.upload_bucket,
+            "artifact_bucket": runtime.artifact_bucket,
+            "max_upload_mb": runtime.max_upload_mb,
         }
     )
 
 
+@app.post("/api/v1/uploads")
+def create_upload() -> Any:
+    uploaded = request.files.get("file")
+    if uploaded is None:
+        raise APIError("validation_error", "file is required.", details={"field": "file"})
+    content = uploaded.read()
+    try:
+        upload = _production_store().save_upload(
+            filename=uploaded.filename or "",
+            content=content,
+            content_type=uploaded.content_type,
+        )
+    except ProductionStoreError as exc:
+        raise _store_error(exc) from exc
+    return _response(upload, status_code=201)
+
+
 @app.post("/api/v1/runs")
 def create_run() -> Any:
-    input_path, required_columns, target_crs = _parse_run_payload()
+    parsed = _parse_run_payload()
+    if parsed["mode"] == "uploaded":
+        try:
+            run = _production_store().create_run(
+                upload_id=parsed["upload_id"],
+                filename=parsed["filename"],
+                upload_storage_path=parsed["upload_storage_path"],
+                required_columns=parsed["required_columns"],
+                target_crs=parsed["target_crs"],
+            )
+        except ProductionStoreError as exc:
+            raise _store_error(exc) from exc
+        return _response(
+            {
+                "run_id": run["run_id"],
+                "status": run["status"],
+                "submitted_at": run["submitted_at"],
+                "filename": run.get("filename"),
+            },
+            status_code=202,
+        )
+
     run_id = f"run-{uuid.uuid4().hex[:12]}"
     state = RunState(
         run_id=run_id,
         status="queued",
         submitted_at=_utc_now(),
-        input_path=input_path,
-        required_columns=required_columns,
-        target_crs=target_crs,
+        input_path=parsed["input_path"],
+        required_columns=parsed["required_columns"],
+        target_crs=parsed["target_crs"],
     )
     _write_state(state)
     _launch_run_async(run_id)
@@ -386,20 +602,44 @@ def create_run() -> Any:
     )
 
 
+@app.get("/api/v1/runs")
+def list_runs() -> Any:
+    try:
+        runs = _production_store().list_runs(limit=int(request.args.get("limit", "20")))
+    except ProductionStoreError as exc:
+        raise _store_error(exc) from exc
+    return _response({"runs": runs})
+
+
 @app.get("/api/v1/runs/<run_id>")
 def get_run(run_id: str) -> Any:
-    state = _read_state(run_id)
-    payload = state.to_dict()
-    if state.run_output_dir:
-        payload["review_status"] = read_agent_review_status(state.run_output_dir)
-    return _response(payload)
+    state = _read_state_or_none(run_id)
+    if state is not None:
+        payload = state.to_dict()
+        if state.run_output_dir:
+            payload["review_status"] = read_agent_review_status(state.run_output_dir)
+        return _response(payload)
+    try:
+        return _response(_production_store().get_run(run_id))
+    except ProductionStoreError as exc:
+        raise _store_error(exc, status_code=404) from exc
 
 
 @app.post("/api/v1/runs/<run_id>/review")
 def review_run(run_id: str) -> Any:
-    state = _read_state(run_id)
-    if state.status != "completed" or not state.run_output_dir:
-        raise APIError("run_not_reviewable", "Run is not ready for review.", status_code=409)
+    state = _read_state_or_none(run_id)
+    if state is None:
+        try:
+            run = _production_store().get_run(run_id)
+        except ProductionStoreError as exc:
+            raise _store_error(exc, status_code=404) from exc
+        output_dir = run.get("run_output_dir")
+        if run.get("status") != "completed" or not output_dir:
+            raise APIError("run_not_reviewable", "Run is not ready for review.", status_code=409)
+    else:
+        if state.status != "completed" or not state.run_output_dir:
+            raise APIError("run_not_reviewable", "Run is not ready for review.", status_code=409)
+        output_dir = state.run_output_dir
 
     payload = request.get_json(silent=True) or {}
     action = str(payload.get("action") or "").strip().lower()
@@ -413,7 +653,7 @@ def review_run(run_id: str) -> Any:
 
     try:
         artifacts = review_existing_agent_report(
-            state.run_output_dir,
+            str(output_dir),
             action=action,
             reviewer_name=reviewer_name,
             notes=str(notes) if notes is not None else None,
@@ -421,7 +661,12 @@ def review_run(run_id: str) -> Any:
     except Exception as exc:
         raise APIError("review_failed", str(exc), status_code=409) from exc
 
-    review_status = read_agent_review_status(state.run_output_dir)
+    review_status = read_agent_review_status(str(output_dir))
+    if state is None:
+        try:
+            _production_store().update_run(run_id, review_status=review_status)
+        except ProductionStoreError:
+            pass
     return _response(
         {
             "run_id": run_id,
@@ -434,19 +679,53 @@ def review_run(run_id: str) -> Any:
 
 @app.get("/api/v1/runs/<run_id>/artifacts")
 def get_artifacts(run_id: str) -> Any:
-    state = _read_state(run_id)
-    if state.status != "completed" or not state.run_output_dir:
+    state = _read_state_or_none(run_id)
+    if state is not None:
+        if state.status != "completed" or not state.run_output_dir:
+            raise APIError("artifacts_not_ready", "Artifacts are not available until the run completes.", status_code=409)
+        output_dir = Path(state.run_output_dir)
+        return _response(
+            {
+                "run_id": run_id,
+                "status": state.status,
+                "output_dir": str(output_dir),
+                "artifacts": _artifact_manifest(output_dir, run_id=run_id),
+            }
+        )
+    try:
+        run = _production_store().get_run(run_id)
+    except ProductionStoreError as exc:
+        raise _store_error(exc, status_code=404) from exc
+    if run.get("status") != "completed":
         raise APIError("artifacts_not_ready", "Artifacts are not available until the run completes.", status_code=409)
-
-    output_dir = Path(state.run_output_dir)
     return _response(
         {
             "run_id": run_id,
-            "status": state.status,
-            "output_dir": str(output_dir),
-            "artifacts": _artifact_manifest(output_dir),
+            "status": run.get("status"),
+            "artifacts": run.get("artifacts") or {},
         }
     )
+
+
+@app.get("/api/v1/runs/<run_id>/artifacts/<artifact_name>/download")
+def download_artifact(run_id: str, artifact_name: str) -> Any:
+    state = _read_state_or_none(run_id)
+    if state is not None:
+        if state.status != "completed" or not state.run_output_dir:
+            raise APIError("artifacts_not_ready", "Artifacts are not available until the run completes.", status_code=409)
+        artifact = _artifact_manifest(Path(state.run_output_dir)).get(artifact_name)
+        if not artifact or not artifact["exists"]:
+            raise APIError("artifact_not_found", f"Artifact '{artifact_name}' was not found.", status_code=404)
+        data = Path(str(artifact["path"])).read_bytes()
+        filename = Path(str(artifact["path"])).name
+        return Response(data, mimetype="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={filename}"})
+    try:
+        store = _production_store()
+        run = store.get_run(run_id)
+        data, filename, content_type = store.artifact_bytes(run, artifact_name)
+    except ProductionStoreError as exc:
+        raise _store_error(exc, status_code=404) from exc
+    return Response(data, mimetype=content_type, headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 
 # Vercel Python runtime expects a WSGI callable named `app`.

@@ -41,13 +41,16 @@ V1 lets an analyst:
 
 V1 deployment uses:
 
-- Vercel API for lightweight integration routes
-- Streamlit on a stateful host for the analyst/operator UI
+- Vercel web UI and API for upload, run status, and artifact downloads
+- Supabase for production upload/run/artifact persistence
+- Python worker container for heavy GeoQA processing
+- Streamlit on a stateful host for deeper internal analyst/operator workflows
 
 V1 docs:
 
 - [V1 release notes](docs/v1_release_notes.md)
 - [V1 deployment guide](docs/v1_deployment.md)
+- [V1 production MVP guide](docs/v1_production_mvp.md)
 - [V1 Centreline case study](docs/v1_case_study_centreline.md)
 - [V1 glossary](docs/v1_glossary.md)
 
@@ -364,9 +367,9 @@ The Streamlit console now lets analysts:
 - optional SQL Server compatibility checks
 - optional linear reference checks
 
-## Vercel API deployment phase
+## Vercel production MVP upload workflow
 
-GeoQA now includes a Vercel Python API backend:
+GeoQA now includes a Vercel Python web UI and API backend:
 
 - [vercel.json](vercel.json)
 - [api/index.py](api/index.py)
@@ -374,14 +377,15 @@ GeoQA now includes a Vercel Python API backend:
 Available routes include:
 
 - public: `/`, `/health`, `/config`
-- authenticated: `/api/v1/runs`, `/api/v1/runs/{run_id}`, `/api/v1/runs/{run_id}/review`, `/api/v1/runs/{run_id}/artifacts`
+- authenticated: `/api/v1/uploads`, `/api/v1/runs`, `/api/v1/runs/{run_id}`, `/api/v1/runs/{run_id}/review`, `/api/v1/runs/{run_id}/artifacts`
 
 Notes:
 
-- `/` renders a lightweight Vercel landing UI for deployment status and API navigation.
+- `/` renders the upload dashboard for `.geojson`, `.gpkg`, and zipped shapefile inputs.
 - `/health` and `/config` remain public JSON endpoints for deployment checks.
+- upload-created runs remain queued until the Python worker processes them.
 - `/api/v1/*` requires `x-api-key` when `GEOQA_API_KEY` is configured.
 - Run processing follows `queued -> running -> completed|failed`.
 - Streamlit remains the primary local/stateful operator console in this phase.
 
-Deployment guide: [docs/vercel_deploy.md](docs/vercel_deploy.md)
+Deployment guide: [docs/vercel_deploy.md](docs/vercel_deploy.md) and [docs/v1_production_mvp.md](docs/v1_production_mvp.md)

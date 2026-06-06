@@ -25,11 +25,18 @@ class AppConfig:
     openai_retry_backoff_seconds: float
     agent_max_steps: int
     agent_output_token_budget: int
+    supabase_url: str | None
+    supabase_service_role_key: str | None
+    upload_bucket: str
+    artifact_bucket: str
+    max_upload_mb: int
+    worker_poll_seconds: float
     env_file: str | None = None
 
     def to_safe_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["openai_api_key"] = "***configured***" if self.openai_api_key else None
+        payload["supabase_service_role_key"] = "***configured***" if self.supabase_service_role_key else None
         return payload
 
     def validate_for_agent_provider(self, provider: str) -> None:
@@ -80,6 +87,18 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
         default=1600,
         minimum=100,
     )
+    max_upload_mb = _parse_int(
+        env_values.get("GEOQA_MAX_UPLOAD_MB"),
+        name="GEOQA_MAX_UPLOAD_MB",
+        default=100,
+        minimum=1,
+    )
+    worker_poll_seconds = _parse_float(
+        env_values.get("GEOQA_WORKER_POLL_SECONDS"),
+        name="GEOQA_WORKER_POLL_SECONDS",
+        default=5.0,
+        minimum=0.1,
+    )
     return AppConfig(
         openai_api_key=env_values.get("OPENAI_API_KEY"),
         llm_model=env_values.get("GEOQA_LLM_MODEL"),
@@ -90,6 +109,12 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
         openai_retry_backoff_seconds=openai_retry_backoff_seconds,
         agent_max_steps=agent_max_steps,
         agent_output_token_budget=agent_output_token_budget,
+        supabase_url=env_values.get("SUPABASE_URL"),
+        supabase_service_role_key=env_values.get("SUPABASE_SERVICE_ROLE_KEY"),
+        upload_bucket=env_values.get("GEOQA_UPLOAD_BUCKET", "geoqa-uploads").strip() or "geoqa-uploads",
+        artifact_bucket=env_values.get("GEOQA_ARTIFACT_BUCKET", "geoqa-artifacts").strip() or "geoqa-artifacts",
+        max_upload_mb=max_upload_mb,
+        worker_poll_seconds=worker_poll_seconds,
         env_file=str(resolved_env) if resolved_env else None,
     )
 
@@ -111,6 +136,11 @@ def diagnose_config(config: AppConfig) -> dict[str, Any]:
             "output_root": config.output_root,
             "agent_max_steps": config.agent_max_steps,
             "agent_output_token_budget": config.agent_output_token_budget,
+            "supabase_configured": bool(config.supabase_url and config.supabase_service_role_key),
+            "upload_bucket": config.upload_bucket,
+            "artifact_bucket": config.artifact_bucket,
+            "max_upload_mb": config.max_upload_mb,
+            "worker_poll_seconds": config.worker_poll_seconds,
         },
         "issues": issues,
     }

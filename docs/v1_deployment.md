@@ -6,31 +6,47 @@ V1 deployment should support a real dataset-readiness workflow with stable URLs,
 
 ## Deployment Shape
 
-- Vercel hosts the lightweight API backend.
-- Streamlit runs on a stateful container or VM host.
-- Both deployments share the same repo branch and runtime configuration model.
+- Vercel hosts the upload web UI and lightweight API backend.
+- Supabase stores production uploads, run metadata, events, and artifacts.
+- A Python worker container runs heavy GeoQA processing.
+- Streamlit can still run on a stateful container or VM host for deeper internal workflows.
 
 ## Required Environments
 
-### Vercel API
+### Vercel API And Upload UI
 
 Set these environment variables in Vercel:
 
 - `GEOQA_API_KEY`
 - `GEOQA_OUTPUT_ROOT`
 - `GEOQA_AGENT_REPORT_ENABLED`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GEOQA_UPLOAD_BUCKET`
+- `GEOQA_ARTIFACT_BUCKET`
+- `GEOQA_WORKER_POLL_SECONDS`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GEOQA_UPLOAD_BUCKET`
+- `GEOQA_ARTIFACT_BUCKET`
+- `GEOQA_MAX_UPLOAD_MB`
 
 Optional for live agent workflows:
 
 - `OPENAI_API_KEY`
 - `GEOQA_LLM_MODEL`
 
-### Streamlit Host
+### Python Worker And Streamlit Host
 
 Set these environment variables on the Streamlit host:
 
 - `GEOQA_OUTPUT_ROOT`
 - `GEOQA_AGENT_REPORT_ENABLED`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GEOQA_UPLOAD_BUCKET`
+- `GEOQA_ARTIFACT_BUCKET`
+- `GEOQA_WORKER_POLL_SECONDS`
 - `OPENAI_API_KEY` when live agent mode is enabled
 - `GEOQA_LLM_MODEL` when live agent mode is enabled
 
@@ -41,11 +57,12 @@ After deployment, verify:
 ```bash
 curl https://<app>.vercel.app/health
 curl https://<app>.vercel.app/config
-curl -H "x-api-key: <key>" https://<app>.vercel.app/api/v1/runs/<run_id>
+curl -H "x-api-key: <key>" https://<app>.vercel.app/api/v1/runs
 ```
 
 Expected behavior:
 
+- `/` shows the upload dashboard.
 - `/health` returns healthy status.
 - `/config` returns runtime visibility and `request_id`.
 - `/api/v1/*` returns `401` without `x-api-key` when `GEOQA_API_KEY` is configured.
@@ -70,16 +87,15 @@ Verify the analyst workflow:
 
 ## Storage Strategy For V1
 
-Use persistent disk for `GEOQA_OUTPUT_ROOT` on the Streamlit host.
-
-V1 keeps Vercel API state under `GEOQA_OUTPUT_ROOT/api_runs`. This is acceptable for the MVP, but the next production step is object storage plus a durable queue.
+Use Supabase as the production persistence layer for uploaded inputs, run metadata, append-only events, and generated artifacts. If Supabase is not configured, the app uses a local filesystem fallback under `GEOQA_OUTPUT_ROOT/production_mvp` for tests and local demos.
 
 ## V1 Release Gate
 
 Before calling a deployment V1-ready:
 
 - full test suite passes
-- Vercel health/config endpoints work
-- authenticated API route works
+- Vercel upload UI and health/config endpoints work
+- authenticated upload and run routes work
+- worker processes a queued upload run
 - Streamlit demo flow works end to end
 - demo output includes deterministic artifacts, agent artifacts, review status, and handoff bundle

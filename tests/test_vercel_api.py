@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import time
 from pathlib import Path
 
 from api.index import app
+from geoqa.production.worker import process_next_run
 
 
 def _write_geojson(path: Path) -> None:
@@ -72,6 +74,8 @@ def test_vercel_root_renders_operator_ui(monkeypatch, tmp_path):
     assert "Dataset readiness QA" in body
     assert "POST /api/v1/runs" in body
     assert "Deployment Status" in body
+    assert "type=\"file\"" in body
+    assert "Upload and queue QA" in body
 
 
 def test_vercel_api_requires_api_key_for_v1_routes(monkeypatch, tmp_path):
@@ -163,3 +167,82 @@ def test_vercel_api_error_envelope_for_validation(monkeypatch, tmp_path):
     assert payload["error"]["code"] == "validation_error"
     assert payload["error"]["details"]["field"] == "input_path"
     assert "request_id" in payload
+
+
+
+def test_vercel_upload_rejects_unsupported_file_type(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+    monkeypatch.setenv("GEOQA_API_KEY", "test-key")
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+
+    client = app.test_client()
+    response = client.post(
+        "/api/v1/uploads",
+        headers={"x-api-key": "test-key"},
+        data={"file": (io.BytesIO(b"not spatial"), "notes.txt")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"]["code"] == "production_store_error"
+    assert "Unsupported file type" in response.get_json()["error"]["message"]
+
+
+def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+    monkeypatch.setenv("GEOQA_API_KEY", "test-key")
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+
+    source = tmp_path / "uploaded.geojson"
+    _write_geojson(source)
+
+    client = app.test_client()
+    headers = {"x-api-key": "test-key"}
+
+    upload = client.post(
+        "/api/v1/uploads",
+        headers=headers,
+        data={"file": (io.BytesIO(source.read_bytes()), "uploaded.geojson")},
+        content_type="multipart/form-data",
+    )
+    assert upload.status_code == 201
+    upload_payload = upload.get_json()
+    assert upload_payload["upload_id"].startswith("upload-")
+
+    created = client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={
+            "upload_id": upload_payload["upload_id"],
+            "upload_storage_path": upload_payload["storage_path"],
+            "filename": upload_payload["filename"],
+            "required_columns": ["asset_id"],
+        },
+    )
+    assert created.status_code == 202
+    run_id = created.get_json()["run_id"]
+
+    queued = client.get(f"/api/v1/runs/{run_id}", headers=headers)
+    assert queued.get_json()["status"] == "queued"
+
+    processed = process_next_run()
+    assert processed is not None
+    assert processed["run_id"] == run_id
+    assert processed["status"] == "completed"
+
+    completed = client.get(f"/api/v1/runs/{run_id}", headers=headers)
+    completed_payload = completed.get_json()
+    assert completed_payload["status"] == "completed"
+    assert completed_payload["readiness_band"] == "ready"
+
+    artifacts = client.get(f"/api/v1/runs/{run_id}/artifacts", headers=headers)
+    artifact_payload = artifacts.get_json()
+    assert artifact_payload["artifacts"]["qa_report"]["exists"] is True
+    assert artifact_payload["artifacts"]["issues_csv"]["exists"] is True
+    assert artifact_payload["artifacts"]["qa_report"]["url"].endswith("/qa_report/download")
+
+    report = client.get(f"/api/v1/runs/{run_id}/artifacts/qa_report/download", headers=headers)
+    assert report.status_code == 200
+    assert b"GeoQA Spatial Readiness Report" in report.data
