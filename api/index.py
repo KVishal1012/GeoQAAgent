@@ -417,6 +417,16 @@ def _landing_page_html() -> str:
       const counts = payload.issue_counts || {{}};
       $("issues").textContent = counts.total ?? "-";
     }}
+    const artifactLabels = {{
+      qa_report: "Final QA Report",
+      issues_csv: "Issues CSV",
+      summary: "Summary JSON",
+      run_record: "Run Record JSON",
+      handoff_bundle: "Handoff Bundle",
+      agent_report_draft: "AI Draft Report",
+      agent_report: "AI Final Report",
+      review_status: "Review Status"
+    }};
     async function loadArtifacts(runId) {{
       const response = await fetch(`/api/v1/runs/${{runId}}/artifacts`, {{ headers: headers() }});
       if (!response.ok) return;
@@ -424,7 +434,8 @@ def _landing_page_html() -> str:
       const links = [];
       for (const [name, artifact] of Object.entries(payload.artifacts || {{}})) {{
         if (artifact.exists && artifact.url) {{
-          links.push(`<a href="${{artifact.url}}" target="_blank" rel="noopener">${{name}}</a>`);
+          const label = artifactLabels[name] || name.replaceAll("_", " ");
+          links.push(`<a href="${{artifact.url}}" target="_blank" rel="noopener">${{label}}</a>`);
         }}
       }}
       $("artifacts").innerHTML = links.length ? links.join("") : "<p class='small'>No downloadable artifacts yet.</p>";
