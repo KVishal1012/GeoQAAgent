@@ -366,6 +366,7 @@ class SupabaseProductionStore(BaseProductionStore):
             "content_type": content_type or mimetypes.guess_type(validation.filename)[0] or "application/octet-stream",
             "size_bytes": validation.size_bytes,
             "storage_provider": "supabase",
+            "upload_bucket": self.config.upload_bucket,
             "storage_path": object_path,
             "direct_upload": True,
             "upload_url": signed_url,

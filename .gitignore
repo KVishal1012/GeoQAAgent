@@ -8,3 +8,4 @@ demo/output/run_log.jsonl
 demo/output/geoqa-*/
 ._*
 .vercel
+vercel.env
