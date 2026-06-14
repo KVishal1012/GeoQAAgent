@@ -21,6 +21,8 @@ ARTIFACT_NAMES = {
     "summary": "summary.json",
     "run_record": "run_record.json",
     "geometry_profile": "geometry_profile.json",
+    "customer_report": "customer_report.md",
+    "customer_intake": "customer_intake.json",
     "handoff_bundle": "handoff_bundle.zip",
     "agent_report_draft": "agent_report_draft.md",
     "agent_report": "agent_report.md",
@@ -103,6 +105,7 @@ class BaseProductionStore:
         target_crs: str | None = None,
         size_bytes: int | None = None,
         content_type: str | None = None,
+        customer_intake: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -203,6 +206,7 @@ class LocalProductionStore(BaseProductionStore):
         target_crs: str | None = None,
         size_bytes: int | None = None,
         content_type: str | None = None,
+        customer_intake: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         run_id = f"run-{uuid.uuid4().hex[:12]}"
         now = utc_now()
@@ -218,6 +222,7 @@ class LocalProductionStore(BaseProductionStore):
             "target_crs": target_crs,
             "size_bytes": size_bytes,
             "content_type": content_type,
+            "customer_intake": customer_intake or {},
             "upload_completed_at": now,
             "readiness_score": None,
             "readiness_band": None,
@@ -415,6 +420,7 @@ class SupabaseProductionStore(BaseProductionStore):
         target_crs: str | None = None,
         size_bytes: int | None = None,
         content_type: str | None = None,
+        customer_intake: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         run = {
             "run_id": f"run-{uuid.uuid4().hex[:12]}",
@@ -428,6 +434,7 @@ class SupabaseProductionStore(BaseProductionStore):
             "target_crs": target_crs,
             "size_bytes": size_bytes,
             "content_type": content_type,
+            "customer_intake": customer_intake or {},
             "upload_completed_at": utc_now(),
             "artifacts": {},
             "attempt_count": 0,

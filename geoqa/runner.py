@@ -20,6 +20,7 @@ from geoqa.normalization.crs_normalizer import normalize_crs
 from geoqa.normalization.geometry_normalizer import normalize_geometries
 from geoqa.normalization.precision import normalize_precision
 from geoqa.ops.run_logger import write_run_log
+from geoqa.reporting.customer_report import build_customer_intake
 from geoqa.reporting.report_generator import generate_artifacts
 from geoqa.scoring.readiness_score import calculate_readiness_score
 from geoqa.severity.taxonomy import apply_severity
@@ -33,6 +34,7 @@ def run_geoqa(
     precision_grid_size: float | None = None,
     enable_sqlserver_checks: bool = True,
     enable_linear_reference_checks: bool = True,
+    customer_intake: dict[str, object] | None = None,
 ) -> QAResult:
     run_record = RunRecord(
         run_id=f"geoqa-{uuid4().hex[:12]}",
@@ -46,6 +48,14 @@ def run_geoqa(
         gdf, feature_id_notes = _ensure_feature_id(gdf)
 
         run_record.filename = metadata["filename"]
+        run_record.customer_intake = build_customer_intake(
+            customer_name=str(customer_intake.get("customer_name")) if customer_intake and customer_intake.get("customer_name") else None,
+            dataset_name=str(customer_intake.get("dataset_name")) if customer_intake and customer_intake.get("dataset_name") else None,
+            intended_use=str(customer_intake.get("intended_use")) if customer_intake and customer_intake.get("intended_use") else None,
+            required_columns=required_columns,
+            target_crs=target_crs,
+            notes=str(customer_intake.get("notes")) if customer_intake and customer_intake.get("notes") else None,
+        )
         run_record.feature_count = metadata["feature_count"]
         run_record.geometry_types = metadata["geometry_types"]
         run_record.crs = metadata["crs"]
@@ -92,6 +102,7 @@ def run_geoqa(
                 "columns": metadata["columns"],
                 "geometry_profile": run_record.geometry_profile,
             },
+            "customer_intake": run_record.customer_intake,
             "spatial_anomalies": {
                 "count": len(spatial_outliers),
                 "feature_ids": [issue.feature_id for issue in spatial_outliers[:20]],

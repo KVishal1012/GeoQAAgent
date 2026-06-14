@@ -241,6 +241,7 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
             "filename": upload_payload["filename"],
             "required_columns": ["asset_id"],
             "target_srid": "3857",
+            "customer_intake": {"customer_name": "City GIS Team", "dataset_name": "Revenue Demo", "intended_use": "sql_load"},
         },
     )
     assert created.status_code == 202
@@ -264,11 +265,17 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
     artifact_payload = artifacts.get_json()
     assert artifact_payload["artifacts"]["qa_report"]["exists"] is True
     assert artifact_payload["artifacts"]["issues_csv"]["exists"] is True
+    assert artifact_payload["artifacts"]["customer_report"]["exists"] is True
+    assert artifact_payload["artifacts"]["customer_intake"]["exists"] is True
     assert artifact_payload["artifacts"]["qa_report"]["url"].endswith("/qa_report/download")
 
     report = client.get(f"/api/v1/runs/{run_id}/artifacts/qa_report/download", headers=headers)
     assert report.status_code == 200
     assert b"GeoQA Spatial Readiness Report" in report.data
+
+    customer_report = client.get(f"/api/v1/runs/{run_id}/artifacts/customer_report/download", headers=headers)
+    assert customer_report.status_code == 200
+    assert b"GeoQA Data Readiness Audit" in customer_report.data
 
 
 def test_vercel_upload_init_and_complete_local_fallback(monkeypatch, tmp_path):

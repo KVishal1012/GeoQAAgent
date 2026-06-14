@@ -1,0 +1,27 @@
+{
+  "run_output_dir": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/demo/customer_package/runs/geoqa-8b40f0b48eeb",
+  "complete": true,
+  "blocking_missing": [],
+  "warning_missing": [
+    "comparison artifacts"
+  ],
+  "selected_comparison_key": null,
+  "included_files": [
+    "agent_report.json",
+    "agent_report.md",
+    "agent_report_draft.md",
+    "customer_intake.json",
+    "customer_report.md",
+    "fix_plan.json",
+    "fix_plan.md",
+    "geometry_profile.json",
+    "hallucination_check.json",
+    "issues.csv",
+    "qa_report.md",
+    "report_consistency.json",
+    "review_history.jsonl",
+    "review_status.json",
+    "run_record.json",
+    "summary.json"
+  ]
+}

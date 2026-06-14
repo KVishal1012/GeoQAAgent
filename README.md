@@ -61,6 +61,32 @@ Canonical V1 demo command:
 python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/static_v4_report.md --approve-agent-report --reviewer-name "Demo Reviewer"
 ```
 
+
+## First Revenue Version
+
+GeoQA's first revenue product is the **GeoQA Data Readiness Audit**: a paid per-dataset or per-project QA package for GIS and infrastructure teams.
+
+It helps teams avoid failed GIS data loads, find spatial anomalies before dashboards break, and create evidence-backed handoff packages for downstream engineering, GIS, or stakeholder review.
+
+Starting offer:
+
+- Starter audit: `$249` per dataset
+- Project audit: `$1,500-$5,000` for 5-20 datasets
+- Pilot audit: `$3,000-$7,500` for a 2-4 week readiness pilot
+
+Revenue artifacts include:
+
+- `customer_report.md`
+- `customer_intake.json`
+- `qa_report.md`
+- `issues.csv`
+- `summary.json`
+- `run_record.json`
+- `geometry_profile.json`
+- optional `handoff_bundle.zip`
+
+First-revenue guide: [GeoQA Data Readiness Audit](docs/first_revenue_audit.md)
+
 ## Project flowchart
 
 ```mermaid

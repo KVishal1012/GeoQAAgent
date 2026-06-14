@@ -1,0 +1,112 @@
+{
+  "dataset": {
+    "filename": "centreline_intersections_sample.zip",
+    "feature_count": 50,
+    "geometry_types": [
+      "MultiPoint"
+    ],
+    "crs": "EPSG:4326",
+    "columns": [
+      "_id1",
+      "INTERSE2",
+      "DATE_EF3",
+      "DATE_EX4",
+      "ELEVATI5",
+      "INTERSE6",
+      "CLASSIF7",
+      "CLASSIF8",
+      "NUMBER_9",
+      "ELEVATI10",
+      "ELEVATI11",
+      "ELEVATI12",
+      "ELEVATI13",
+      "ELEVATI14",
+      "HEIGHT_15",
+      "HEIGHT_16",
+      "STATE17",
+      "TRANS_I18",
+      "TRANS_I19",
+      "OBJECTI20",
+      "geometry"
+    ],
+    "geometry_profile": {
+      "observed_geometry_types": [
+        {
+          "type": "MultiPoint",
+          "label": "Multi-point",
+          "family": "point",
+          "count": 50,
+          "percent": 100.0
+        }
+      ],
+      "geometry_families": {
+        "point": 50,
+        "linear": 0,
+        "polygon": 0,
+        "collection": 0,
+        "curve_or_circular": 0,
+        "unknown": 0
+      },
+      "source_geometry_types": [
+        "MultiPoint"
+      ],
+      "primary_geometry_type": "MultiPoint",
+      "primary_geometry_label": "Multi-point",
+      "null_geometry_count": 0,
+      "empty_geometry_count": 0,
+      "total_bounds": {
+        "min_x": -79.5797027580265,
+        "min_y": 43.5984784439551,
+        "max_x": -79.3831494830163,
+        "max_y": 43.6938145826081
+      },
+      "has_z": false,
+      "has_m": false,
+      "has_curves_or_arcs": false,
+      "curve_detection_confidence": "not_detected_from_source_metadata",
+      "advanced_geometry_flags": {
+        "geometry_collection": false,
+        "multi_part": true,
+        "holes_or_interior_rings": false,
+        "multipart_polygons": false,
+        "z_coordinates": false,
+        "m_coordinates": false
+      },
+      "unique_features": {
+        "duplicate_geometry_count": 1,
+        "multipart_feature_count": 50,
+        "features_with_polygon_holes": 0,
+        "total_polygon_hole_count": 0,
+        "unique_point_coordinate_count": 0
+      },
+      "notes": [
+        "No curved or circular geometry was detected from available metadata.",
+        "Length and area summaries should be reviewed carefully because the dataset uses geographic coordinates."
+      ]
+    }
+  },
+  "customer_intake": {
+    "customer_name": "Demo City GIS Team",
+    "dataset_name": "Centreline Intersections Sample",
+    "intended_use": "sql_load",
+    "intended_use_label": "SQL/database loading",
+    "required_columns": [
+      "OBJECTID"
+    ],
+    "notes": "Assess readiness before SQL/database loading and downstream reporting."
+  },
+  "spatial_anomalies": {
+    "count": 0,
+    "feature_ids": [],
+    "method": "median_center_mad_with_extent_check"
+  },
+  "readiness": {
+    "score": 72,
+    "band": "needs_review",
+    "penalties": {
+      "low": 3,
+      "medium": 1,
+      "high": 1
+    }
+  }
+}

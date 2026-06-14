@@ -25,7 +25,7 @@ def _write_geojson(path: Path, features: list[dict]) -> None:
 
 
 def _assert_standard_artifacts_exist(artifact_paths: dict[str, str]) -> None:
-    for key in ("report", "issues_csv", "run_record", "summary", "geometry_profile"):
+    for key in ("report", "issues_csv", "run_record", "summary", "geometry_profile", "customer_report", "customer_intake"):
         assert Path(artifact_paths[key]).exists(), f"missing artifact: {key}"
 
 
@@ -161,6 +161,48 @@ def test_uat_detected_source_ids_are_used_in_findings(tmp_path):
     assert duplicate_issue.feature_id == 102
     assert "Feature IDs copied from source column 'OBJECTID'." in result.run_record.normalization_notes
 
+
+
+def test_uat_customer_report_uses_intake_and_cautious_workflow_language(tmp_path):
+    input_path = tmp_path / "customer.geojson"
+    output_root = tmp_path / "outputs"
+    _write_geojson(
+        input_path,
+        [
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-1"},
+                "geometry": {"type": "Point", "coordinates": [-79.38, 43.65]},
+            },
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-2"},
+                "geometry": {"type": "Point", "coordinates": [-79.39, 43.66]},
+            },
+        ],
+    )
+
+    result = run_geoqa(
+        input_path=str(input_path),
+        output_root=str(output_root),
+        required_columns=["asset_id"],
+        customer_intake={
+            "customer_name": "City GIS Team",
+            "dataset_name": "Customer Road Assets",
+            "intended_use": "sql_load",
+            "notes": "Assess before database loading.",
+        },
+    )
+
+    report = Path(result.artifact_paths["customer_report"]).read_text(encoding="utf-8")
+    intake = json.loads(Path(result.artifact_paths["customer_intake"]).read_text(encoding="utf-8"))
+
+    assert "# GeoQA Data Readiness Audit" in report
+    assert "City GIS Team" in report
+    assert "Customer Road Assets" in report
+    assert "Ready for review before SQL/database loading." in report
+    assert "unsuitable" not in report.lower()
+    assert intake["intended_use"] == "sql_load"
 
 def test_uat_static_gateway_full_review_flow(tmp_path):
     input_path = tmp_path / "clean.geojson"

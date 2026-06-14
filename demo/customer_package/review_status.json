@@ -1,0 +1,10 @@
+{
+  "status": "approved",
+  "reviewer_name": "Demo Reviewer",
+  "reviewed_at": "2026-06-14T23:22:21.232367+00:00",
+  "notes": "Approved for customer package demo.",
+  "draft_path": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/demo/customer_package/runs/geoqa-8b40f0b48eeb/agent_report_draft.md",
+  "final_path": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/demo/customer_package/runs/geoqa-8b40f0b48eeb/agent_report.md",
+  "blocking_errors": [],
+  "warnings": []
+}

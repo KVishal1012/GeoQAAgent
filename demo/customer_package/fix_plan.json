@@ -1,0 +1,159 @@
+{
+  "dataset": {
+    "filename": "centreline_intersections_sample.zip",
+    "feature_count": 50,
+    "geometry_types": [
+      "MultiPoint"
+    ],
+    "crs": "EPSG:4326",
+    "columns": [
+      "_id1",
+      "INTERSE2",
+      "DATE_EF3",
+      "DATE_EX4",
+      "ELEVATI5",
+      "INTERSE6",
+      "CLASSIF7",
+      "CLASSIF8",
+      "NUMBER_9",
+      "ELEVATI10",
+      "ELEVATI11",
+      "ELEVATI12",
+      "ELEVATI13",
+      "ELEVATI14",
+      "HEIGHT_15",
+      "HEIGHT_16",
+      "STATE17",
+      "TRANS_I18",
+      "TRANS_I19",
+      "OBJECTI20",
+      "geometry"
+    ],
+    "geometry_profile": {
+      "observed_geometry_types": [
+        {
+          "type": "MultiPoint",
+          "label": "Multi-point",
+          "family": "point",
+          "count": 50,
+          "percent": 100.0
+        }
+      ],
+      "geometry_families": {
+        "point": 50,
+        "linear": 0,
+        "polygon": 0,
+        "collection": 0,
+        "curve_or_circular": 0,
+        "unknown": 0
+      },
+      "source_geometry_types": [
+        "MultiPoint"
+      ],
+      "primary_geometry_type": "MultiPoint",
+      "primary_geometry_label": "Multi-point",
+      "null_geometry_count": 0,
+      "empty_geometry_count": 0,
+      "total_bounds": {
+        "min_x": -79.5797027580265,
+        "min_y": 43.5984784439551,
+        "max_x": -79.3831494830163,
+        "max_y": 43.6938145826081
+      },
+      "has_z": false,
+      "has_m": false,
+      "has_curves_or_arcs": false,
+      "curve_detection_confidence": "not_detected_from_source_metadata",
+      "advanced_geometry_flags": {
+        "geometry_collection": false,
+        "multi_part": true,
+        "holes_or_interior_rings": false,
+        "multipart_polygons": false,
+        "z_coordinates": false,
+        "m_coordinates": false
+      },
+      "unique_features": {
+        "duplicate_geometry_count": 1,
+        "multipart_feature_count": 50,
+        "features_with_polygon_holes": 0,
+        "total_polygon_hole_count": 0,
+        "unique_point_coordinate_count": 0
+      },
+      "notes": [
+        "No curved or circular geometry was detected from available metadata.",
+        "Length and area summaries should be reviewed carefully because the dataset uses geographic coordinates."
+      ]
+    }
+  },
+  "prompt_template_name": "fix_recommendation_v1",
+  "playbook_sources": [
+    "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/duplicate_geometry_playbook.md",
+    "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/geometry_fix_playbook.md"
+  ],
+  "issue_groups": [
+    {
+      "issue_code": "DUPLICATE_GEOMETRY",
+      "severity": "medium",
+      "count": 1,
+      "feature_ids": [
+        "12"
+      ],
+      "columns": [],
+      "messages": [
+        "Feature duplicates geometry of feature 11."
+      ],
+      "suggested_fix": "Deduplicate repeated spatial features.",
+      "playbooks": [
+        {
+          "title": "Duplicate Geometry Playbook",
+          "source": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/duplicate_geometry_playbook.md",
+          "text": "# Duplicate Geometry Playbook\n\nUse this playbook when GeoQA reports duplicate geometry records.\n\nGrounded guidance:\n- Duplicate geometries can indicate duplicate records, conflated assets, or valid multi-record modeling.\n- For intersection datasets, duplicate point geometries may be valid when multiple records describe the same physical location at different levels or classifications.\n- Review duplicate geometry findings before spatial joins, network analysis, SQL Server loading, or downstream reporting.\n- Do not state that duplicate geometries make a dataset unusable unless the workflow requirements prove that conclusion.\n\n"
+        }
+      ]
+    },
+    {
+      "issue_code": "MISSING_REQUIRED_COLUMN",
+      "severity": "high",
+      "count": 1,
+      "feature_ids": [],
+      "columns": [
+        "OBJECTID"
+      ],
+      "messages": [
+        "Required column 'OBJECTID' is missing."
+      ],
+      "suggested_fix": "Add the required schema column.",
+      "playbooks": [
+        {
+          "title": "Geometry And Schema Fix Playbook",
+          "source": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/geometry_fix_playbook.md",
+          "text": "# Geometry And Schema Fix Playbook\n\nUse this playbook for geometry validity, null geometry, mixed geometry, size anomaly, schema, and sparse column findings.\n\nGrounded guidance:\n- Null or empty geometries should be restored from source data or removed before publishing.\n- Invalid geometries should be repaired with a GIS repair workflow and rechecked.\n- Mixed geometry types should be split into separate layers when downstream systems expect one geometry family.\n- Null-heavy columns should be reviewed with the data owner before removal or population.\n- Required schema fields should be added or mapped before downstream use.\n\n"
+        }
+      ]
+    },
+    {
+      "issue_code": "NULL_HEAVY_COLUMN",
+      "severity": "low",
+      "count": 3,
+      "feature_ids": [],
+      "columns": [
+        "ELEVATI12",
+        "ELEVATI13",
+        "HEIGHT_15"
+      ],
+      "messages": [
+        "Column 'ELEVATI12' is 98% null.",
+        "Column 'ELEVATI13' is 100% null.",
+        "Column 'HEIGHT_15' is 100% null."
+      ],
+      "suggested_fix": "Review whether sparse fields should be populated or removed.",
+      "playbooks": [
+        {
+          "title": "Geometry And Schema Fix Playbook",
+          "source": "/Volumes/Ultra Touch/Koushik's Laptop/Github/GeoQAAgent/geoqa/rag/knowledge_base/geometry_fix_playbook.md",
+          "text": "# Geometry And Schema Fix Playbook\n\nUse this playbook for geometry validity, null geometry, mixed geometry, size anomaly, schema, and sparse column findings.\n\nGrounded guidance:\n- Null or empty geometries should be restored from source data or removed before publishing.\n- Invalid geometries should be repaired with a GIS repair workflow and rechecked.\n- Mixed geometry types should be split into separate layers when downstream systems expect one geometry family.\n- Null-heavy columns should be reviewed with the data owner before removal or population.\n- Required schema fields should be added or mapped before downstream use.\n\n"
+        }
+      ]
+    }
+  ]
+}

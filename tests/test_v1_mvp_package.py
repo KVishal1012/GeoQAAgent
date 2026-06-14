@@ -10,6 +10,7 @@ def test_v1_mvp_docs_are_present_and_linked():
         REPO_ROOT / "docs" / "v1_deployment.md",
         REPO_ROOT / "docs" / "v1_case_study_centreline.md",
         REPO_ROOT / "docs" / "v1_glossary.md",
+        REPO_ROOT / "docs" / "first_revenue_audit.md",
     ]
     for path in required_docs:
         assert path.exists(), f"missing V1 document: {path.name}"
@@ -43,3 +44,26 @@ def test_v1_demo_artifact_package_is_complete():
     ]
     for name in required_artifacts:
         assert (demo_output / name).exists(), f"missing V1 demo artifact: {name}"
+
+
+def test_first_revenue_customer_package_is_present():
+    package = REPO_ROOT / "demo" / "customer_package"
+    required_artifacts = [
+        "README.md",
+        "customer_report.md",
+        "customer_intake.json",
+        "qa_report.md",
+        "issues.csv",
+        "summary.json",
+        "run_record.json",
+        "geometry_profile.json",
+        "fix_plan.md",
+        "handoff_bundle.zip",
+    ]
+    for name in required_artifacts:
+        assert (package / name).exists(), f"missing first-revenue customer package artifact: {name}"
+
+    report = (package / "customer_report.md").read_text(encoding="utf-8")
+    assert "GeoQA Data Readiness Audit" in report
+    assert "Handoff decision" in report
+    assert "unsuitable" not in report.lower()

@@ -35,6 +35,7 @@ def process_next_run(store: BaseProductionStore | None = None, *, output_root: s
                 output_root=str(qa_output_root),
                 required_columns=list(run.get("required_columns") or []),
                 target_crs=run.get("target_crs"),
+                customer_intake=run.get("customer_intake") or {},
             )
             store.heartbeat_run(run_id, worker_id=config.worker_id)
             artifacts = store.upload_artifacts(run_id, result.artifact_paths["output_dir"])

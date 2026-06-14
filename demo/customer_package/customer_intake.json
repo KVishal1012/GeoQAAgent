@@ -1,0 +1,10 @@
+{
+  "customer_name": "Demo City GIS Team",
+  "dataset_name": "Centreline Intersections Sample",
+  "intended_use": "sql_load",
+  "intended_use_label": "SQL/database loading",
+  "required_columns": [
+    "OBJECTID"
+  ],
+  "notes": "Assess readiness before SQL/database loading and downstream reporting."
+}

@@ -22,6 +22,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--required-column", action="append", dest="required_columns", default=[], help="Required schema column. Repeat the flag to require multiple columns.")
     parser.add_argument("--target-crs", default=None, help="Optional canonical CRS for QA checks.")
     parser.add_argument("--precision-grid-size", type=float, default=None, help="Optional coordinate snapping grid size.")
+    parser.add_argument("--customer-name", default=None, help="Customer or organization name for the customer-facing audit report.")
+    parser.add_argument("--customer-dataset-name", default=None, help="Business-facing dataset name for the customer-facing audit report.")
+    parser.add_argument("--intended-use", default=None, choices=["sql_load", "dashboard", "migration", "routing", "asset_handoff", "spatial_join", "other"], help="Intended downstream use used for cautious workflow guidance.")
+    parser.add_argument("--customer-notes", default=None, help="Optional customer/context notes written to customer_intake.json and customer_report.md.")
     parser.add_argument("--skip-sqlserver-checks", action="store_true", help="Disable SQL Server compatibility checks.")
     parser.add_argument("--skip-linear-reference-checks", action="store_true", help="Disable linear reference checks.")
     parser.add_argument("--agent-report", action="store_true", help="Backward-compatible alias for running the V4 agent with the report task.")
@@ -114,6 +118,12 @@ def main() -> None:
             precision_grid_size=args.precision_grid_size,
             enable_sqlserver_checks=not args.skip_sqlserver_checks,
             enable_linear_reference_checks=not args.skip_linear_reference_checks,
+            customer_intake={
+                "customer_name": args.customer_name,
+                "dataset_name": args.customer_dataset_name,
+                "intended_use": args.intended_use,
+                "notes": args.customer_notes,
+            },
         )
 
         agent_requested = args.agent_run or args.agent_report

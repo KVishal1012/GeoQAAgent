@@ -23,6 +23,7 @@ class RunRecord:
     feature_count: int = 0
     geometry_types: list[str] = field(default_factory=list)
     geometry_profile: dict[str, Any] = field(default_factory=dict)
+    customer_intake: dict[str, Any] = field(default_factory=dict)
     crs: str | None = None
     enabled_checks: list[str] = field(default_factory=list)
     normalization_notes: list[str] = field(default_factory=list)

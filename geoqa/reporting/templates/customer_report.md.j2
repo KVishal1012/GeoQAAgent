@@ -1,0 +1,91 @@
+# GeoQA Data Readiness Audit
+
+## Executive Summary
+
+GeoQA reviewed `{{ context.dataset_name }}` for {{ context.customer_name }}.
+The dataset contains {{ context.feature_count }} features and is classified as `{{ context.readiness_band }}` with a readiness score of `{{ context.readiness_score }}/100`.
+
+**Handoff decision:** {{ context.workflow_guidance.decision }}
+
+{{ context.workflow_guidance.rationale }}
+
+{% if context.customer_notes %}
+Customer notes: {{ context.customer_notes }}
+{% endif %}
+
+## Intended Use
+
+- Intended use: {{ context.intended_use_label }}
+- Target CRS/SRID: `{{ context.target_crs or "source CRS" }}`
+{% if context.required_columns %}
+- Required columns: {{ context.required_columns | join(", ") }}
+{% else %}
+- Required columns: none specified
+{% endif %}
+
+## Readiness Result
+
+| Measure | Value |
+| --- | --- |
+| Readiness band | `{{ context.readiness_band }}` |
+| Readiness score | `{{ context.readiness_score }}/100` |
+| High-priority findings | `{{ context.issue_counts.high }}` |
+| Medium-priority findings | `{{ context.issue_counts.medium }}` |
+| Low-priority findings | `{{ context.issue_counts.low }}` |
+| Total findings | `{{ context.issue_counts.total }}` |
+
+## Geometry Profile
+
+{% set profile = context.geometry_profile or {} %}
+- Primary geometry: `{{ profile.primary_geometry_label or "Unknown geometry" }}`
+- Technical geometry type: `{{ profile.primary_geometry_type or "unknown" }}`
+- Curved, circular, or arc geometry detected: `{{ profile.has_curves_or_arcs or false }}`
+- Multipart geometry present: `{{ profile.advanced_geometry_flags.multi_part if profile.advanced_geometry_flags else false }}`
+- Z coordinates present: `{{ profile.has_z or false }}`
+
+{% if profile.observed_geometry_types %}
+| Geometry Type | Plain-English Label | Count | Share |
+| --- | --- | ---: | ---: |
+{% for row in profile.observed_geometry_types %}
+| `{{ row.type }}` | {{ row.label }} | `{{ row.count }}` | `{{ row.percent }}%` |
+{% endfor %}
+{% endif %}
+
+## Spatial Anomalies
+
+{% if context.spatial_anomalies.count %}
+GeoQA flagged {{ context.spatial_anomalies.count }} spatial outlier feature{% if context.spatial_anomalies.count != 1 %}s{% endif %}. These should be reviewed before handoff because they sit far outside the dataset's dominant spatial cluster.
+
+Flagged feature IDs: {{ context.spatial_anomalies.feature_ids | join(", ") }}
+{% else %}
+No strong spatial outliers were detected by the configured anomaly check.
+{% endif %}
+
+## Critical Findings
+
+{% if context.top_issues %}
+{% for issue in context.top_issues %}
+- `[{{ issue.severity | title }}]` `{{ issue.issue_code }}`{% if issue.feature_id is not none %} for record `{{ issue.feature_id }}`{% endif %}: {{ issue.message }}
+  Recommended action: {{ issue.suggested_fix or "Review this finding with the data owner." }}
+{% endfor %}
+{% else %}
+- No findings were detected by the configured checks.
+{% endif %}
+
+## Recommended Next Steps
+
+- Review high-priority findings before production loading or handoff.
+- Confirm spatial anomalies with the source system of record.
+- Use `issues.csv` for record-level triage and assignment.
+- Keep `summary.json`, `run_record.json`, and `geometry_profile.json` with the project audit trail.
+- If findings are accepted as valid for the workflow, document the acceptance decision before downstream use.
+
+## Included Evidence Package
+
+- Customer report: `customer_report.md`
+- Issue spreadsheet: `issues.csv`
+- Deterministic QA report: `qa_report.md`
+- Run summary: `summary.json`
+- Run record: `run_record.json`
+- Geometry profile: `geometry_profile.json`
+- Customer intake: `customer_intake.json`

@@ -38,6 +38,7 @@ class RunState:
     readiness_score: int | None = None
     readiness_band: str | None = None
     issue_counts: dict[str, int] | None = None
+    customer_intake: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -132,6 +133,18 @@ def _validate_api_key() -> None:
         raise APIError("unauthorized", "Missing or invalid API key.", status_code=401)
 
 
+def _parse_customer_intake(payload: dict[str, Any], required_columns: list[str], target_crs: str | None) -> dict[str, Any]:
+    raw = payload.get("customer_intake") if isinstance(payload.get("customer_intake"), dict) else {}
+    intake = {
+        "customer_name": str(raw.get("customer_name") or payload.get("customer_name") or "").strip(),
+        "dataset_name": str(raw.get("dataset_name") or payload.get("customer_dataset_name") or payload.get("dataset_name") or "").strip(),
+        "intended_use": str(raw.get("intended_use") or payload.get("intended_use") or "").strip(),
+        "notes": str(raw.get("notes") or payload.get("customer_notes") or payload.get("notes") or "").strip(),
+        "required_columns": required_columns,
+        "target_crs": target_crs,
+    }
+    return {key: value for key, value in intake.items() if value not in ("", None, [])}
+
 def _parse_required_columns(raw_columns: Any) -> list[str]:
     if raw_columns in (None, ""):
         return []
@@ -159,6 +172,7 @@ def _parse_run_payload() -> dict[str, Any]:
     filename = str(payload.get("filename") or "").strip()
     size_bytes = payload.get("size_bytes")
     content_type = payload.get("content_type")
+    customer_intake = _parse_customer_intake(payload, required_columns, target_crs)
     if upload_id or upload_storage_path:
         if not upload_id:
             raise APIError("validation_error", "upload_id is required.", details={"field": "upload_id"})
@@ -175,6 +189,7 @@ def _parse_run_payload() -> dict[str, Any]:
             "target_crs": target_crs,
             "size_bytes": int(size_bytes) if size_bytes not in (None, "") else None,
             "content_type": str(content_type).strip() if content_type else None,
+            "customer_intake": customer_intake,
         }
 
     input_path = str(payload.get("input_path") or "").strip()
@@ -203,6 +218,7 @@ def _execute_run(run_id: str) -> None:
             output_root=str(_output_root()),
             required_columns=state.required_columns,
             target_crs=state.target_crs,
+            customer_intake=state.customer_intake or {},
         )
         _update_state(
             run_id,
@@ -364,6 +380,23 @@ def _landing_page_html() -> str:
         <input id="apiKey" type="password" placeholder="Paste x-api-key for protected deployments" />
         <label for="dataset">Dataset file</label>
         <input id="dataset" type="file" accept=".geojson,.gpkg,.zip,application/zip" />
+        <label for="customerName">Customer / organization, optional</label>
+        <input id="customerName" type="text" placeholder="City GIS Team" />
+        <label for="customerDatasetName">Business dataset name, optional</label>
+        <input id="customerDatasetName" type="text" placeholder="Road centreline intersections" />
+        <label for="intendedUse">Intended downstream use</label>
+        <select id="intendedUse">
+          <option value="">General QA / not specified</option>
+          <option value="sql_load">SQL/database loading</option>
+          <option value="dashboard">Dashboard or reporting</option>
+          <option value="migration">GIS or asset-system migration</option>
+          <option value="routing">Routing or network analysis</option>
+          <option value="asset_handoff">Asset handoff</option>
+          <option value="spatial_join">Spatial joins or enrichment</option>
+          <option value="other">Other downstream use</option>
+        </select>
+        <label for="customerNotes">Customer notes, optional</label>
+        <textarea id="customerNotes" placeholder="What decision should this audit support?"></textarea>
         <label for="requiredColumns">Required columns, optional</label>
         <input id="requiredColumns" type="text" placeholder="asset_id, road_name" />
         <label for="targetCrs">Target CRS / SRID for optional reprojection</label>
@@ -447,6 +480,8 @@ def _landing_page_html() -> str:
       summary: "Summary JSON",
       run_record: "Run Record JSON",
       geometry_profile: "Geometry Profile JSON",
+      customer_report: "Customer Audit Report",
+      customer_intake: "Customer Intake JSON",
       handoff_bundle: "Handoff Bundle",
       agent_report_draft: "AI Draft Report",
       agent_report: "AI Final Report",
@@ -588,6 +623,12 @@ def _landing_page_html() -> str:
         setMessage("Upload complete. Queueing QA run...");
         const requiredColumns = $("requiredColumns").value.split(",").map((value) => value.trim()).filter(Boolean);
         const targetCrs = $("targetCrs").value.trim() || null;
+        const customerIntake = {{
+          customer_name: $("customerName").value.trim(),
+          dataset_name: $("customerDatasetName").value.trim(),
+          intended_use: $("intendedUse").value.trim(),
+          notes: $("customerNotes").value.trim()
+        }};
         const runResponse = await fetch("/api/v1/runs", {{
           method: "POST",
           headers: headers(true),
@@ -597,7 +638,8 @@ def _landing_page_html() -> str:
             filename: upload.filename,
             required_columns: requiredColumns,
             target_crs: targetCrs,
-            target_srid: targetCrs
+            target_srid: targetCrs,
+            customer_intake: customerIntake
           }})
         }});
         const run = await readJson(runResponse);
@@ -627,6 +669,8 @@ def _artifact_manifest(output_dir: Path, run_id: str | None = None) -> dict[str,
         "run_record": output_dir / "run_record.json",
         "summary": output_dir / "summary.json",
         "geometry_profile": output_dir / "geometry_profile.json",
+        "customer_report": output_dir / "customer_report.md",
+        "customer_intake": output_dir / "customer_intake.json",
         "agent_report_draft": output_dir / "agent_report_draft.md",
         "agent_report": output_dir / "agent_report.md",
         "agent_report_json": output_dir / "agent_report.json",
@@ -772,6 +816,7 @@ def create_run() -> Any:
                 target_crs=parsed["target_crs"],
                 size_bytes=parsed.get("size_bytes"),
                 content_type=parsed.get("content_type"),
+                customer_intake=parsed.get("customer_intake"),
             )
         except ProductionStoreError as exc:
             raise _store_error(exc) from exc
@@ -793,6 +838,7 @@ def create_run() -> Any:
         input_path=parsed["input_path"],
         required_columns=parsed["required_columns"],
         target_crs=parsed["target_crs"],
+        customer_intake=parsed.get("customer_intake") or {},
     )
     _write_state(state)
     _launch_run_async(run_id)

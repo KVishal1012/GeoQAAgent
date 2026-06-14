@@ -7,6 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from geoqa.models import QAResult
+from geoqa.reporting.customer_report import build_customer_report_context
 from geoqa.workflows.run_index import append_run_index
 
 
@@ -24,6 +25,8 @@ def generate_artifacts(
         "run_record": str(output_dir / "run_record.json"),
         "summary": str(output_dir / "summary.json"),
         "geometry_profile": str(output_dir / "geometry_profile.json"),
+        "customer_intake": str(output_dir / "customer_intake.json"),
+        "customer_report": str(output_dir / "customer_report.md"),
         "report": str(output_dir / "qa_report.md"),
     }
     qa_result.artifact_paths = artifacts
@@ -46,8 +49,17 @@ def generate_artifacts(
         encoding="utf-8",
     )
 
+    customer_intake_path = Path(artifacts["customer_intake"])
+    customer_intake_path.write_text(
+        json.dumps(qa_result.summary.get("customer_intake", {}), indent=2),
+        encoding="utf-8",
+    )
+
     report_path = Path(artifacts["report"])
     report_path.write_text(_render_report(qa_result, template_dir), encoding="utf-8")
+
+    customer_report_path = Path(artifacts["customer_report"])
+    customer_report_path.write_text(_render_customer_report(qa_result, template_dir), encoding="utf-8")
     append_run_index(qa_result, output_root)
 
     return artifacts
@@ -82,3 +94,15 @@ def _render_report(qa_result: QAResult, template_dir: str | Path | None) -> str:
     )
     template = env.get_template("qa_report.md.j2")
     return template.render(result=qa_result.to_dict())
+
+
+def _render_customer_report(qa_result: QAResult, template_dir: str | Path | None) -> str:
+    base_dir = Path(template_dir) if template_dir else Path(__file__).parent / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(base_dir)),
+        autoescape=select_autoescape(default=False),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    template = env.get_template("customer_report.md.j2")
+    return template.render(context=build_customer_report_context(qa_result))
