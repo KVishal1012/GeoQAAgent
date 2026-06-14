@@ -30,6 +30,7 @@ ISSUE_PLAYBOOK_MAP = {
     "SUSPICIOUS_LARGE_FEATURE": "geometry_fix_playbook.md",
     "SUSPICIOUS_SMALL_FEATURE": "geometry_fix_playbook.md",
     "ZERO_LENGTH_LINE": "geometry_fix_playbook.md",
+    "SPATIAL_OUTLIER": "spatial_anomaly_playbook.md",
     "MISSING_REQUIRED_COLUMN": "geometry_fix_playbook.md",
     "NON_STRING_COLUMN_NAME": "geometry_fix_playbook.md",
     "LONG_COLUMN_NAME": "geometry_fix_playbook.md",

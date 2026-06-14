@@ -20,6 +20,7 @@ ARTIFACT_NAMES = {
     "issues_csv": "issues.csv",
     "summary": "summary.json",
     "run_record": "run_record.json",
+    "geometry_profile": "geometry_profile.json",
     "handoff_bundle": "handoff_bundle.zip",
     "agent_report_draft": "agent_report_draft.md",
     "agent_report": "agent_report.md",

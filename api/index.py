@@ -218,6 +218,24 @@ def _execute_run(run_id: str) -> None:
         _update_state(run_id, status="failed", finished_at=_utc_now(), error=str(exc))
 
 
+
+def _enrich_run_payload_with_artifacts(payload: dict[str, Any]) -> dict[str, Any]:
+    output_dir = payload.get("run_output_dir")
+    if not output_dir:
+        return payload
+    summary_path = Path(str(output_dir)) / "summary.json"
+    if not summary_path.exists():
+        return payload
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except Exception:
+        return payload
+    dataset = summary.get("dataset") or {}
+    payload.setdefault("geometry_types", dataset.get("geometry_types"))
+    payload.setdefault("geometry_profile", dataset.get("geometry_profile"))
+    payload.setdefault("spatial_anomalies", summary.get("spatial_anomalies"))
+    return payload
+
 def _response(payload: dict[str, Any], status_code: int = 200) -> Response:
     payload["request_id"] = g.request_id
     return jsonify(payload), status_code
@@ -370,6 +388,8 @@ def _landing_page_html() -> str:
           <div class="status"><span class="label">Status</span><span id="runStatus" class="value">Waiting</span></div>
           <div class="status"><span class="label">Readiness</span><span id="readiness" class="value">-</span></div>
           <div class="status"><span class="label">Issues</span><span id="issues" class="value">-</span></div>
+          <div class="status"><span class="label">Geometry</span><span id="geometryProfile" class="value">-</span></div>
+          <div class="status"><span class="label">Spatial Anomalies</span><span id="spatialAnomalies" class="value">-</span></div>
         </div>
         <h3>Downloads</h3>
         <div id="artifacts" class="artifacts"><p class="small">Artifacts appear after the worker completes the run.</p></div>
@@ -416,12 +436,17 @@ def _landing_page_html() -> str:
       $("readiness").textContent = band === "-" ? "-" : `${{band}} (${{score}})`;
       const counts = payload.issue_counts || {{}};
       $("issues").textContent = counts.total ?? "-";
+      const profile = payload.geometry_profile || {{}};
+      $("geometryProfile").textContent = profile.primary_geometry_label || (payload.geometry_types || []).join(", ") || "-";
+      const anomalies = payload.spatial_anomalies || {{}};
+      $("spatialAnomalies").textContent = anomalies.count ?? "-";
     }}
     const artifactLabels = {{
       qa_report: "Final QA Report",
       issues_csv: "Issues CSV",
       summary: "Summary JSON",
       run_record: "Run Record JSON",
+      geometry_profile: "Geometry Profile JSON",
       handoff_bundle: "Handoff Bundle",
       agent_report_draft: "AI Draft Report",
       agent_report: "AI Final Report",
@@ -601,6 +626,7 @@ def _artifact_manifest(output_dir: Path, run_id: str | None = None) -> dict[str,
         "issues_csv": output_dir / "issues.csv",
         "run_record": output_dir / "run_record.json",
         "summary": output_dir / "summary.json",
+        "geometry_profile": output_dir / "geometry_profile.json",
         "agent_report_draft": output_dir / "agent_report_draft.md",
         "agent_report": output_dir / "agent_report.md",
         "agent_report_json": output_dir / "agent_report.json",
@@ -796,9 +822,11 @@ def get_run(run_id: str) -> Any:
         payload = state.to_dict()
         if state.run_output_dir:
             payload["review_status"] = read_agent_review_status(state.run_output_dir)
+            payload = _enrich_run_payload_with_artifacts(payload)
         return _response(payload)
     try:
-        return _response(_production_store().get_run(run_id))
+        payload = _production_store().get_run(run_id)
+        return _response(_enrich_run_payload_with_artifacts(payload))
     except ProductionStoreError as exc:
         raise _store_error(exc, status_code=404) from exc
 

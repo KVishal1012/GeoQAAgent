@@ -340,6 +340,7 @@ def load_result_from_output_dir(output_dir: str) -> QAResult:
         "issues_csv": str(output_path / "issues.csv"),
         "run_record": str(output_path / "run_record.json"),
         "summary": str(output_path / "summary.json"),
+        "geometry_profile": str(output_path / "geometry_profile.json"),
     }
     return QAResult(run_record=run_record, issues=issues, summary=summary_payload, artifact_paths=artifact_paths)
 
@@ -350,6 +351,7 @@ def load_run_artifacts(output_dir: str, comparison_key: str | None = None) -> di
         "output_dir": str(output_path),
         "summary": _read_json_if_exists(output_path / "summary.json"),
         "run_record": _read_json_if_exists(output_path / "run_record.json"),
+        "geometry_profile": _read_json_if_exists(output_path / "geometry_profile.json"),
         "review_status": read_agent_review_status(output_path),
         "review_history": read_review_history(output_path),
         "qa_report": _read_text_if_exists(output_path / "qa_report.md"),
@@ -594,12 +596,16 @@ def format_run_overview_for_display(output_dir: str, artifacts: dict[str, Any]) 
     summary = artifacts.get("summary") or {}
     dataset = summary.get("dataset") or {}
     readiness = summary.get("readiness") or {}
+    geometry_profile = artifacts.get("geometry_profile") or dataset.get("geometry_profile") or {}
+    spatial_anomalies = summary.get("spatial_anomalies") or {}
     session = artifacts.get("agent_session") or {}
     return {
         "Output Folder": output_dir,
         "Dataset": dataset.get("filename"),
         "Feature Count": dataset.get("feature_count"),
         "Geometry Type": ", ".join(dataset.get("geometry_types", [])) if dataset.get("geometry_types") else None,
+        "Geometry Label": geometry_profile.get("primary_geometry_label"),
+        "Spatial Anomalies": spatial_anomalies.get("count", 0),
         "Coordinate System": dataset.get("crs"),
         "Readiness": _humanize_status(readiness.get("band")),
         "Readiness Score": readiness.get("score"),

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from itertools import combinations
+from statistics import median
 
 import geopandas as gpd
 import pandas as pd
 
 from geoqa.models import Issue
+
+MIN_SPATIAL_OUTLIER_FEATURES = 8
+SPATIAL_OUTLIER_SCORE_THRESHOLD = 8.0
 
 
 def run_geometry_checks(gdf: gpd.GeoDataFrame, feature_id_column: str = "feature_id") -> list[Issue]:
@@ -102,6 +106,7 @@ def run_geometry_checks(gdf: gpd.GeoDataFrame, feature_id_column: str = "feature
             )
 
     issues.extend(_find_polygon_overlaps(gdf, polygon_indices, feature_id_column))
+    issues.extend(_find_spatial_outliers(gdf, feature_id_column))
     return issues
 
 
@@ -131,3 +136,86 @@ def _find_polygon_overlaps(
                 )
             )
     return issues
+
+
+def _find_spatial_outliers(gdf: gpd.GeoDataFrame, feature_id_column: str) -> list[Issue]:
+    points: list[tuple[int, str | int, float, float]] = []
+    for index, row in gdf.iterrows():
+        geometry = row.geometry
+        if geometry is None or pd.isna(geometry):
+            continue
+        try:
+            if geometry.is_empty:
+                continue
+            point = geometry.representative_point()
+            points.append((index, row.get(feature_id_column, index), float(point.x), float(point.y)))
+        except Exception:
+            continue
+
+    if len(points) < MIN_SPATIAL_OUTLIER_FEATURES:
+        return []
+
+    xs = [point[2] for point in points]
+    ys = [point[3] for point in points]
+    center_x = float(median(xs))
+    center_y = float(median(ys))
+    distances = [_euclidean_distance(x, y, center_x, center_y) for _, _, x, y in points]
+    median_distance = float(median(distances))
+    deviations = [abs(distance - median_distance) for distance in distances]
+    mad = float(median(deviations))
+    if mad <= 0:
+        non_zero = [distance for distance in distances if distance > 0]
+        if not non_zero:
+            return []
+        mad = max(float(median(non_zero)) / 10, 1e-12)
+
+    issues: list[Issue] = []
+    for (index, feature_id, x, y), distance in zip(points, distances):
+        score = 0.6745 * (distance - median_distance) / mad
+        if score < SPATIAL_OUTLIER_SCORE_THRESHOLD:
+            continue
+        if not _expands_extent_strongly(points, index):
+            continue
+        issues.append(
+            Issue(
+                issue_code="SPATIAL_OUTLIER",
+                check_name="spatial_outlier",
+                feature_id=feature_id,
+                message=(
+                    "Feature is far outside the dataset's dominant spatial cluster "
+                    "and should be reviewed."
+                ),
+                context={
+                    "representative_x": round(x, 8),
+                    "representative_y": round(y, 8),
+                    "dataset_center_x": round(center_x, 8),
+                    "dataset_center_y": round(center_y, 8),
+                    "outlier_score": round(float(score), 2),
+                    "distance_from_dataset_center": round(float(distance), 8),
+                    "method": "median_center_mad_with_extent_check",
+                },
+            )
+        )
+    return issues
+
+
+def _euclidean_distance(x: float, y: float, center_x: float, center_y: float) -> float:
+    return ((x - center_x) ** 2 + (y - center_y) ** 2) ** 0.5
+
+
+def _expands_extent_strongly(points: list[tuple[int, str | int, float, float]], candidate_index: int) -> bool:
+    all_xs = [point[2] for point in points]
+    all_ys = [point[3] for point in points]
+    remaining = [point for point in points if point[0] != candidate_index]
+    if len(remaining) < MIN_SPATIAL_OUTLIER_FEATURES - 1:
+        return False
+
+    remaining_xs = [point[2] for point in remaining]
+    remaining_ys = [point[3] for point in remaining]
+    full_width = max(all_xs) - min(all_xs)
+    full_height = max(all_ys) - min(all_ys)
+    remaining_width = max(remaining_xs) - min(remaining_xs)
+    remaining_height = max(remaining_ys) - min(remaining_ys)
+    full_extent = max(full_width, full_height)
+    remaining_extent = max(remaining_width, remaining_height, 1e-12)
+    return full_extent / remaining_extent >= 5

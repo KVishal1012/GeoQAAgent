@@ -31,6 +31,42 @@ The most important finding is a small set of low-severity completeness or cleanu
 | Low | `{{ result.issue_counts.low }}` | Cleanup or completeness concern |
 | Total | `{{ result.issue_counts.total }}` | All detected findings |
 
+
+## Geometry Profile
+
+{% set geometry_profile = result.summary.dataset.geometry_profile or {} %}
+{% set observed_geometry_types = geometry_profile.observed_geometry_types or [] %}
+{% if observed_geometry_types %}
+| Geometry Type | Plain-English Label | Family | Count | Share |
+| --- | --- | --- | ---: | ---: |
+{% for geometry_type in observed_geometry_types %}
+| `{{ geometry_type.type }}` | {{ geometry_type.label }} | {{ geometry_type.family.replace("_", " ").title() }} | `{{ geometry_type.count }}` | `{{ geometry_type.percent }}%` |
+{% endfor %}
+{% else %}
+- Geometry type could not be profiled from the loaded dataset.
+{% endif %}
+
+- Primary geometry: `{{ geometry_profile.primary_geometry_label or "Unknown geometry" }}`
+- Multipart geometry present: `{{ geometry_profile.advanced_geometry_flags.multi_part if geometry_profile.advanced_geometry_flags else false }}`
+- Geometry collections present: `{{ geometry_profile.advanced_geometry_flags.geometry_collection if geometry_profile.advanced_geometry_flags else false }}`
+- Z coordinates present: `{{ geometry_profile.has_z or false }}`
+- M coordinates present: `{{ geometry_profile.has_m or false }}`
+- Curved, circular, or arc geometry detected: `{{ geometry_profile.has_curves_or_arcs or false }}`
+- Curve detection confidence: `{{ geometry_profile.curve_detection_confidence or "unknown" }}`
+
+{% for note in geometry_profile.notes or [] %}
+- {{ note }}
+{% endfor %}
+
+## Spatial Anomalies
+
+{% set spatial_outlier_count = result.issues | selectattr("issue_code", "equalto", "SPATIAL_OUTLIER") | list | length %}
+{% if spatial_outlier_count > 0 %}
+GeoQA flagged {{ spatial_outlier_count }} feature{% if spatial_outlier_count != 1 %}s{% endif %} as spatially unusual because they are far outside the dataset's dominant spatial cluster. This does not prove the feature is wrong; it should be reviewed for CRS, coordinate order, source record accuracy, or legitimate remote coverage.
+{% else %}
+No strong spatial outliers were detected by the configured anomaly check.
+{% endif %}
+
 ## Normalization Notes
 
 {% for note in result.run_record.normalization_notes %}

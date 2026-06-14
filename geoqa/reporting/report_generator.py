@@ -23,6 +23,7 @@ def generate_artifacts(
         "issues_csv": str(output_dir / "issues.csv"),
         "run_record": str(output_dir / "run_record.json"),
         "summary": str(output_dir / "summary.json"),
+        "geometry_profile": str(output_dir / "geometry_profile.json"),
         "report": str(output_dir / "qa_report.md"),
     }
     qa_result.artifact_paths = artifacts
@@ -38,6 +39,12 @@ def generate_artifacts(
 
     summary_path = Path(artifacts["summary"])
     summary_path.write_text(json.dumps(qa_result.summary, indent=2), encoding="utf-8")
+
+    geometry_profile_path = Path(artifacts["geometry_profile"])
+    geometry_profile_path.write_text(
+        json.dumps(qa_result.summary.get("dataset", {}).get("geometry_profile", {}), indent=2),
+        encoding="utf-8",
+    )
 
     report_path = Path(artifacts["report"])
     report_path.write_text(_render_report(qa_result, template_dir), encoding="utf-8")

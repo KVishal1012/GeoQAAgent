@@ -13,6 +13,7 @@ from geoqa.checks.linear_reference_checks import run_linear_reference_checks
 from geoqa.checks.schema_checks import run_schema_checks
 from geoqa.checks.sqlserver_checks import run_sqlserver_checks
 from geoqa.ingestion.loaders import load_dataset
+from geoqa.geometry.profile import build_geometry_profile
 from geoqa.ingestion.validators import validate_input_file
 from geoqa.models import QAResult, RunRecord
 from geoqa.normalization.crs_normalizer import normalize_crs
@@ -55,6 +56,10 @@ def run_geoqa(
         run_record.normalization_notes = feature_id_notes + crs_notes + geometry_notes + precision_notes
         run_record.crs = gdf.crs.to_string() if gdf.crs else run_record.crs
         run_record.geometry_types = sorted({str(value) for value in gdf.geom_type.dropna().unique()})
+        run_record.geometry_profile = build_geometry_profile(
+            gdf,
+            source_geometry_types=metadata.get("geometry_types", []),
+        )
 
         issues = []
         issues.extend(run_crs_checks(gdf))
@@ -77,6 +82,7 @@ def run_geoqa(
         }
         run_record.status = "completed"
 
+        spatial_outliers = [issue for issue in issues if issue.issue_code == "SPATIAL_OUTLIER"]
         summary = {
             "dataset": {
                 "filename": metadata["filename"],
@@ -84,6 +90,12 @@ def run_geoqa(
                 "geometry_types": run_record.geometry_types,
                 "crs": run_record.crs,
                 "columns": metadata["columns"],
+                "geometry_profile": run_record.geometry_profile,
+            },
+            "spatial_anomalies": {
+                "count": len(spatial_outliers),
+                "feature_ids": [issue.feature_id for issue in spatial_outliers[:20]],
+                "method": "median_center_mad_with_extent_check",
             },
             "readiness": readiness,
         }

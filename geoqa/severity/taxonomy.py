@@ -23,6 +23,7 @@ SEVERITY_MAP: dict[str, SeverityRule] = {
     "SUSPICIOUS_LARGE_FEATURE": SeverityRule("medium", "Confirm CRS and feature extent."),
     "SUSPICIOUS_SMALL_FEATURE": SeverityRule("low", "Review feature precision and snapping."),
     "ZERO_LENGTH_LINE": SeverityRule("medium", "Remove or repair zero-length line features."),
+    "SPATIAL_OUTLIER": SeverityRule("medium", "Verify whether the remote feature location is valid, has the right CRS, and belongs in this dataset."),
     "MISSING_REQUIRED_COLUMN": SeverityRule("high", "Add the required schema column."),
     "NON_STRING_COLUMN_NAME": SeverityRule("medium", "Rename the column using a string identifier."),
     "LONG_COLUMN_NAME": SeverityRule("low", "Shorten the column name for downstream compatibility."),

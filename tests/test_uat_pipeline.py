@@ -25,7 +25,7 @@ def _write_geojson(path: Path, features: list[dict]) -> None:
 
 
 def _assert_standard_artifacts_exist(artifact_paths: dict[str, str]) -> None:
-    for key in ("report", "issues_csv", "run_record", "summary"):
+    for key in ("report", "issues_csv", "run_record", "summary", "geometry_profile"):
         assert Path(artifact_paths[key]).exists(), f"missing artifact: {key}"
 
 
@@ -59,6 +59,7 @@ def test_uat_clean_geojson_produces_ready_output(tmp_path):
     assert result.run_record.readiness_band == "ready"
     assert result.issues == []
     assert result.summary["dataset"]["feature_count"] == 2
+    assert result.summary["dataset"]["geometry_profile"]["primary_geometry_label"] == "Point"
     _assert_standard_artifacts_exist(result.artifact_paths)
 
 
