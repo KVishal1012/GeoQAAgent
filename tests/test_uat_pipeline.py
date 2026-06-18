@@ -25,7 +25,7 @@ def _write_geojson(path: Path, features: list[dict]) -> None:
 
 
 def _assert_standard_artifacts_exist(artifact_paths: dict[str, str]) -> None:
-    for key in ("report", "issues_csv", "run_record", "summary", "geometry_profile", "customer_report", "customer_intake"):
+    for key in ("report", "issues_csv", "run_record", "summary", "geometry_profile", "customer_report", "customer_report_pdf", "customer_intake"):
         assert Path(artifact_paths[key]).exists(), f"missing artifact: {key}"
 
 
@@ -195,6 +195,7 @@ def test_uat_customer_report_uses_intake_and_cautious_workflow_language(tmp_path
     )
 
     report = Path(result.artifact_paths["customer_report"]).read_text(encoding="utf-8")
+    assert Path(result.artifact_paths["customer_report_pdf"]).exists()
     intake = json.loads(Path(result.artifact_paths["customer_intake"]).read_text(encoding="utf-8"))
 
     assert "# GeoQA Data Readiness Audit" in report

@@ -9,6 +9,12 @@ The dataset contains {{ context.feature_count }} features and is classified as `
 
 {{ context.workflow_guidance.rationale }}
 
+{% if context.business_owner %}
+Business owner: {{ context.business_owner }}
+{% endif %}
+{% if context.decision_context %}
+Decision context: {{ context.decision_context }}
+{% endif %}
 {% if context.customer_notes %}
 Customer notes: {{ context.customer_notes }}
 {% endif %}

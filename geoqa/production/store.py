@@ -22,6 +22,7 @@ ARTIFACT_NAMES = {
     "run_record": "run_record.json",
     "geometry_profile": "geometry_profile.json",
     "customer_report": "customer_report.md",
+    "customer_report_pdf": "customer_report.pdf",
     "customer_intake": "customer_intake.json",
     "handoff_bundle": "handoff_bundle.zip",
     "agent_report_draft": "agent_report_draft.md",

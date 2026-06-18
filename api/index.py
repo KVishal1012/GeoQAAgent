@@ -137,8 +137,10 @@ def _parse_customer_intake(payload: dict[str, Any], required_columns: list[str],
     raw = payload.get("customer_intake") if isinstance(payload.get("customer_intake"), dict) else {}
     intake = {
         "customer_name": str(raw.get("customer_name") or payload.get("customer_name") or "").strip(),
+        "business_owner": str(raw.get("business_owner") or payload.get("business_owner") or "").strip(),
         "dataset_name": str(raw.get("dataset_name") or payload.get("customer_dataset_name") or payload.get("dataset_name") or "").strip(),
         "intended_use": str(raw.get("intended_use") or payload.get("intended_use") or "").strip(),
+        "decision_context": str(raw.get("decision_context") or payload.get("decision_context") or "").strip(),
         "notes": str(raw.get("notes") or payload.get("customer_notes") or payload.get("notes") or "").strip(),
         "required_columns": required_columns,
         "target_crs": target_crs,
@@ -382,6 +384,8 @@ def _landing_page_html() -> str:
         <input id="dataset" type="file" accept=".geojson,.gpkg,.zip,application/zip" />
         <label for="customerName">Customer / organization, optional</label>
         <input id="customerName" type="text" placeholder="City GIS Team" />
+        <label for="businessOwner">Business owner, optional</label>
+        <input id="businessOwner" type="text" placeholder="GIS manager or program owner" />
         <label for="customerDatasetName">Business dataset name, optional</label>
         <input id="customerDatasetName" type="text" placeholder="Road centreline intersections" />
         <label for="intendedUse">Intended downstream use</label>
@@ -395,6 +399,8 @@ def _landing_page_html() -> str:
           <option value="spatial_join">Spatial joins or enrichment</option>
           <option value="other">Other downstream use</option>
         </select>
+        <label for="decisionContext">Decision context, optional</label>
+        <input id="decisionContext" type="text" placeholder="Approve SQL load before migration" />
         <label for="customerNotes">Customer notes, optional</label>
         <textarea id="customerNotes" placeholder="What decision should this audit support?"></textarea>
         <label for="requiredColumns">Required columns, optional</label>
@@ -670,6 +676,7 @@ def _artifact_manifest(output_dir: Path, run_id: str | None = None) -> dict[str,
         "summary": output_dir / "summary.json",
         "geometry_profile": output_dir / "geometry_profile.json",
         "customer_report": output_dir / "customer_report.md",
+        "customer_report_pdf": output_dir / "customer_report.pdf",
         "customer_intake": output_dir / "customer_intake.json",
         "agent_report_draft": output_dir / "agent_report_draft.md",
         "agent_report": output_dir / "agent_report.md",

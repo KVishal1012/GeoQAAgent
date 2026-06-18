@@ -27,14 +27,17 @@ def compare_run_outputs(
 
     summary_path = storage_dir / "comparison_summary.json"
     report_path = storage_dir / "comparison_report.md"
+    customer_report_path = storage_dir / "customer_comparison.md"
     latest_summary_path = comparison_dir / "comparison_summary.json"
     latest_report_path = comparison_dir / "comparison_report.md"
     index_path = comparison_dir / "comparison_index.json"
 
     summary_text = json.dumps(summary, indent=2)
     report_text = render_comparison_report(summary)
+    customer_report_text = render_customer_comparison_report(summary)
     summary_path.write_text(summary_text, encoding="utf-8")
     report_path.write_text(report_text, encoding="utf-8")
+    customer_report_path.write_text(customer_report_text, encoding="utf-8")
     latest_summary_path.write_text(summary_text, encoding="utf-8")
     latest_report_path.write_text(report_text, encoding="utf-8")
     _write_comparison_index(index_path, comparison_key, summary_path, report_path, summary)
@@ -43,6 +46,7 @@ def compare_run_outputs(
         "comparison_summary": str(summary_path),
         "comparison_report": str(report_path),
         "comparison_index": str(index_path),
+        "customer_comparison": str(customer_report_path),
     }
 
 
@@ -199,3 +203,35 @@ def _issue_code_counts(issues: list[dict[str, Any]]) -> dict[str, int]:
         if code:
             counts[code] = counts.get(code, 0) + 1
     return counts
+
+
+def render_customer_comparison_report(summary: dict[str, Any]) -> str:
+    from geoqa.reporting.customer_report import build_customer_comparison_context
+
+    context = build_customer_comparison_context(summary)
+    lines = [
+        "# GeoQA Customer Comparison Brief",
+        "",
+        f"Baseline: `{context['base_label']}`",
+        f"Current: `{context['target_label']}`",
+        "",
+        "## Summary",
+        "",
+        context['summary_line'],
+        "",
+        "## Readiness Change",
+        "",
+        f"- Baseline readiness: `{context['readiness_band_base']}`",
+        f"- Current readiness: `{context['readiness_band_target']}`",
+        f"- Readiness score change: `{context['readiness_score_delta']}`",
+        "",
+        "## Finding Changes",
+        "",
+    ]
+    for severity, delta in context['severity_deltas'].items():
+        lines.append(f"- `{severity.title()}` change: `{delta}`")
+    lines.extend(["", "## New Finding Codes", ""])
+    lines.append(", ".join(f"`{code}`" for code in context['new_issue_codes']) or "none")
+    lines.extend(["", "## Resolved Finding Codes", ""])
+    lines.append(", ".join(f"`{code}`" for code in context['resolved_issue_codes']) or "none")
+    return "\n".join(lines)

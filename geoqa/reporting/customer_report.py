@@ -18,17 +18,21 @@ INTENDED_USE_LABELS = {
 def build_customer_intake(
     *,
     customer_name: str | None = None,
+    business_owner: str | None = None,
     dataset_name: str | None = None,
     intended_use: str | None = None,
+    decision_context: str | None = None,
     required_columns: list[str] | None = None,
     target_crs: str | None = None,
     notes: str | None = None,
 ) -> dict[str, Any]:
     payload = {
         "customer_name": _clean(customer_name),
+        "business_owner": _clean(business_owner),
         "dataset_name": _clean(dataset_name),
         "intended_use": _clean(intended_use),
         "intended_use_label": INTENDED_USE_LABELS.get(_clean(intended_use) or "", _clean(intended_use) or None),
+        "decision_context": _clean(decision_context),
         "required_columns": [str(value).strip() for value in required_columns or [] if str(value).strip()],
         "target_crs": _clean(target_crs),
         "notes": _clean(notes),
@@ -47,9 +51,11 @@ def build_customer_report_context(qa_result: QAResult) -> dict[str, Any]:
     )[:10]
     return {
         "customer_name": intake.get("customer_name", "Customer"),
+        "business_owner": intake.get("business_owner"),
         "dataset_name": intake.get("dataset_name") or dataset.get("filename") or qa_result.run_record.filename,
         "intended_use": intake.get("intended_use"),
         "intended_use_label": intake.get("intended_use_label") or "downstream use",
+        "decision_context": intake.get("decision_context"),
         "customer_notes": intake.get("notes"),
         "required_columns": intake.get("required_columns") or [],
         "target_crs": intake.get("target_crs") or qa_result.run_record.crs,
@@ -73,7 +79,7 @@ def build_workflow_guidance(qa_result: QAResult, intake: dict[str, Any]) -> dict
         decision = f"Ready for review before {label}."
         rationale = "GeoQA did not detect blocking findings under the configured checks."
     elif band == "not_ready":
-        decision = f"Not ready for handoff before {label} until high-severity findings are resolved."
+        decision = f"Needs review before {label} until high-severity findings are resolved."
         rationale = "GeoQA detected high-severity findings that should be fixed before production use."
     else:
         decision = f"Needs review before {label}."
@@ -93,3 +99,30 @@ def _clean(value: str | None) -> str | None:
         return None
     cleaned = str(value).strip()
     return cleaned or None
+
+
+def build_customer_comparison_context(comparison_summary: dict[str, Any], *, base_label: str | None = None, target_label: str | None = None) -> dict[str, Any]:
+    severity_deltas = comparison_summary.get("issue_count_deltas_by_severity") or {}
+    issue_code_deltas = comparison_summary.get("issue_count_deltas_by_issue_code") or {}
+    new_issue_codes = comparison_summary.get("new_issue_codes") or []
+    resolved_issue_codes = comparison_summary.get("resolved_issue_codes") or []
+    readiness_delta = int(comparison_summary.get("readiness_score_delta") or 0)
+    target_band = comparison_summary.get("readiness_band_target")
+    if target_band == "ready":
+        summary_line = "The dataset is now ready for downstream use based on the current GeoQA rules."
+    elif target_band == "not_ready":
+        summary_line = "The dataset still needs remediation before downstream use."
+    else:
+        summary_line = "The dataset still needs review before downstream use."
+    return {
+        "base_label": base_label or comparison_summary.get("base_run_id") or "baseline",
+        "target_label": target_label or comparison_summary.get("target_run_id") or "current",
+        "summary_line": summary_line,
+        "readiness_score_delta": readiness_delta,
+        "readiness_band_base": comparison_summary.get("readiness_band_base"),
+        "readiness_band_target": target_band,
+        "severity_deltas": severity_deltas,
+        "issue_code_deltas": issue_code_deltas,
+        "new_issue_codes": new_issue_codes,
+        "resolved_issue_codes": resolved_issue_codes,
+    }

@@ -51,6 +51,7 @@ def test_first_revenue_customer_package_is_present():
     required_artifacts = [
         "README.md",
         "customer_report.md",
+        "customer_report.pdf",
         "customer_intake.json",
         "qa_report.md",
         "issues.csv",

@@ -56,6 +56,7 @@ def build_bundle_manifest(
         "run_record.json",
         "geometry_profile.json",
         "customer_report.md",
+        "customer_report.pdf",
         "customer_intake.json",
         "review_status.json",
         "review_history.jsonl",

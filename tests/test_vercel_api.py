@@ -266,6 +266,7 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
     assert artifact_payload["artifacts"]["qa_report"]["exists"] is True
     assert artifact_payload["artifacts"]["issues_csv"]["exists"] is True
     assert artifact_payload["artifacts"]["customer_report"]["exists"] is True
+    assert artifact_payload["artifacts"]["customer_report_pdf"]["exists"] is True
     assert artifact_payload["artifacts"]["customer_intake"]["exists"] is True
     assert artifact_payload["artifacts"]["qa_report"]["url"].endswith("/qa_report/download")
 
@@ -276,6 +277,10 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
     customer_report = client.get(f"/api/v1/runs/{run_id}/artifacts/customer_report/download", headers=headers)
     assert customer_report.status_code == 200
     assert b"GeoQA Data Readiness Audit" in customer_report.data
+
+    customer_pdf = client.get(f"/api/v1/runs/{run_id}/artifacts/customer_report_pdf/download", headers=headers)
+    assert customer_pdf.status_code == 200
+    assert customer_pdf.data[:4] == b"%PDF"
 
 
 def test_vercel_upload_init_and_complete_local_fallback(monkeypatch, tmp_path):
