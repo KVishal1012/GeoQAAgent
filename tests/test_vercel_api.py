@@ -70,15 +70,46 @@ def test_vercel_root_renders_operator_ui(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert response.content_type.startswith("text/html")
-    assert "GeoQA Agent" in body
-    assert "Dataset readiness QA" in body
-    assert "POST /api/v1/runs" in body
-    assert "Deployment Status" in body
-    assert "type=\"file\"" in body
-    assert "Upload and queue QA" in body
-    assert "Target CRS / SRID for optional reprojection" in body
+    assert "GeoQA Data Readiness Audit" in body
+    assert "Evidence Package Console" in body
+    assert "New run" in body
+    assert "Spatial evidence" in body
+    assert "Customer report PDF" in body
+    assert "Issues CSV" in body
+    assert "Handoff bundle" in body
+    assert "Approve package" in body
+    assert "Target CRS / SRID" in body
     assert "EPSG:3857" in body
+    assert 'type="file"' in body
 
+
+def test_vercel_root_prioritizes_revenue_artifacts(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+
+    client = app.test_client()
+    body = client.get("/").get_data(as_text=True)
+
+    assert 'primaryArtifactOrder = ["customer_report_pdf", "issues_csv", "handoff_bundle"]' in body
+    assert 'customer_report_pdf: "Customer report PDF"' in body
+    assert 'issues_csv: "Issues CSV"' in body
+    assert 'handoff_bundle: "Handoff bundle"' in body
+    assert 'qa_report: "QA report"' in body
+    assert 'summary: "Summary JSON"' in body
+    assert 'geometry_profile: "Geometry profile JSON"' in body
+
+
+def test_vercel_root_contains_review_ui_contract(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+
+    client = app.test_client()
+    body = client.get("/").get_data(as_text=True)
+
+    assert "reviewerName" in body
+    assert "reviewNotes" in body
+    assert "approvePackage" in body
+    assert "rejectPackage" in body
+    assert "async function reviewRun(action)" in body
+    assert "/api/v1/runs/${currentRunId}/review" in body
 
 def test_vercel_api_requires_api_key_for_v1_routes(monkeypatch, tmp_path):
     monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))

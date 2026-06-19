@@ -6,11 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from geoqa.models import QAResult
 from geoqa.reporting.customer_report import build_customer_report_context
@@ -120,143 +115,89 @@ def _render_customer_report(qa_result: QAResult, template_dir: str | Path | None
 
 
 def _write_customer_report_pdf(path: Path, context: dict[str, Any]) -> None:
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "GeoQATitle",
-        parent=styles["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=20,
-        leading=24,
-        textColor=colors.HexColor("#16221c"),
-        spaceAfter=12,
-    )
-    heading_style = ParagraphStyle(
-        "GeoQAHeading",
-        parent=styles["Heading2"],
-        fontName="Helvetica-Bold",
-        fontSize=12,
-        leading=15,
-        textColor=colors.HexColor("#226b4f"),
-        spaceBefore=8,
-        spaceAfter=6,
-    )
-    body_style = ParagraphStyle(
-        "GeoQABody",
-        parent=styles["BodyText"],
-        fontName="Helvetica",
-        fontSize=9.5,
-        leading=13,
-        spaceAfter=6,
-    )
-    small_style = ParagraphStyle(
-        "GeoQASmall",
-        parent=styles["BodyText"],
-        fontName="Helvetica",
-        fontSize=8.5,
-        leading=11,
-        textColor=colors.HexColor("#627268"),
-        spaceAfter=4,
-    )
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=letter,
-        rightMargin=0.55 * inch,
-        leftMargin=0.55 * inch,
-        topMargin=0.6 * inch,
-        bottomMargin=0.55 * inch,
-        title="GeoQA Data Readiness Audit",
-        author="GeoQA Agent",
-    )
-    story: list[Any] = []
-    story.append(Paragraph("GeoQA Data Readiness Audit", title_style))
-    story.append(Paragraph(f"{context['customer_name']} · {context['dataset_name']}", body_style))
-    story.append(Paragraph(context['workflow_guidance']['decision'], heading_style))
-    story.append(Paragraph(context['workflow_guidance']['rationale'], body_style))
-    if context.get('decision_context'):
-        story.append(Paragraph(f"Decision context: {context['decision_context']}", small_style))
-    story.append(Spacer(1, 0.08 * inch))
-    story.append(Paragraph("Readiness Result", heading_style))
-    summary_rows = [
-        ["Readiness band", str(context['readiness_band'])],
-        ["Readiness score", f"{context['readiness_score']}/100"],
-        ["High findings", str(context['issue_counts']['high'])],
-        ["Medium findings", str(context['issue_counts']['medium'])],
-        ["Low findings", str(context['issue_counts']['low'])],
-        ["Total findings", str(context['issue_counts']['total'])],
+    lines = [
+        "GeoQA Data Readiness Audit",
+        f"{context['customer_name']} - {context['dataset_name']}",
+        "",
+        context['workflow_guidance']['decision'],
+        context['workflow_guidance']['rationale'],
+        "",
+        "Readiness Result",
+        f"Readiness band: {context['readiness_band']}",
+        f"Readiness score: {context['readiness_score']}/100",
+        f"High findings: {context['issue_counts']['high']}",
+        f"Medium findings: {context['issue_counts']['medium']}",
+        f"Low findings: {context['issue_counts']['low']}",
+        f"Total findings: {context['issue_counts']['total']}",
+        "",
+        "Geometry Profile",
+        f"Primary geometry: {context.get('geometry_profile', {}).get('primary_geometry_label') or 'Unknown geometry'}",
+        f"Technical geometry type: {context.get('geometry_profile', {}).get('primary_geometry_type') or 'unknown'}",
+        f"Curved, circular, or arc geometry detected: {context.get('geometry_profile', {}).get('has_curves_or_arcs') or False}",
+        f"Multipart geometry present: {context.get('geometry_profile', {}).get('advanced_geometry_flags', {}).get('multi_part', False)}",
+        f"Z coordinates present: {context.get('geometry_profile', {}).get('has_z') or False}",
     ]
-    summary_table = Table(summary_rows, colWidths=[1.8 * inch, 4.9 * inch])
-    summary_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#16221c")),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d7dfd8")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d7dfd8")),
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("LEADING", (0, 0), (-1, -1), 11),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-    story.append(summary_table)
-    story.append(Spacer(1, 0.12 * inch))
-
-    story.append(Paragraph("Geometry Profile", heading_style))
-    profile = context.get("geometry_profile") or {}
-    story.append(Paragraph(f"Primary geometry: {profile.get('primary_geometry_label') or 'Unknown geometry'}", body_style))
-    story.append(Paragraph(f"Technical geometry type: {profile.get('primary_geometry_type') or 'unknown'}", body_style))
-    story.append(Paragraph(f"Curved, circular, or arc geometry detected: {profile.get('has_curves_or_arcs') or False}", body_style))
-    story.append(Paragraph(f"Multipart geometry present: {profile.get('advanced_geometry_flags', {}).get('multi_part', False)}", body_style))
-    story.append(Paragraph(f"Z coordinates present: {profile.get('has_z') or False}", body_style))
-
-    if profile.get('observed_geometry_types'):
-        geom_rows = [["Geometry type", "Plain-English label", "Count", "Share"]]
-        for row in profile['observed_geometry_types']:
-            geom_rows.append([row['type'], row['label'], str(row['count']), f"{row['percent']}%"])
-        geom_table = Table(geom_rows, colWidths=[1.45 * inch, 2.35 * inch, 0.8 * inch, 0.8 * inch])
-        geom_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e7efe7")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#16221c")),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d7dfd8")),
-            ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d7dfd8")),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-            ("LEADING", (0, 0), (-1, -1), 10),
-        ]))
-        story.append(geom_table)
+    if context.get('decision_context'):
+        lines.extend(["", f"Decision context: {context['decision_context']}"])
+    profile = context.get('geometry_profile') or {}
     if profile.get('notes'):
-        for note in profile['notes']:
-            story.append(Paragraph(note, small_style))
-
-    story.append(Spacer(1, 0.08 * inch))
-    story.append(Paragraph("Spatial Anomalies", heading_style))
-    anomalies = context.get("spatial_anomalies") or {}
+        lines.extend(["", "Geometry notes:"] + [f"- {note}" for note in profile['notes']])
+    anomalies = context.get('spatial_anomalies') or {}
+    lines.extend(["", "Spatial Anomalies"])
     count = int(anomalies.get('count') or 0)
     if count:
-        story.append(Paragraph(f"GeoQA flagged {count} spatial outlier feature{'s' if count != 1 else ''}.", body_style))
+        lines.append(f"GeoQA flagged {count} spatial outlier feature{'s' if count != 1 else ''}.")
         if anomalies.get('feature_ids'):
-            story.append(Paragraph(f"Flagged feature IDs: {', '.join(str(value) for value in anomalies['feature_ids'])}", small_style))
+            lines.append(f"Flagged feature IDs: {', '.join(str(value) for value in anomalies['feature_ids'])}")
     else:
-        story.append(Paragraph("No strong spatial outliers were detected by the configured anomaly check.", body_style))
-
-    story.append(Paragraph("Critical Findings", heading_style))
+        lines.append("No strong spatial outliers were detected by the configured anomaly check.")
+    lines.extend(["", "Critical Findings"])
     issues = context.get('top_issues') or []
     if issues:
-        bullets = []
-        for issue in issues[:10]:
-            label = f"[{issue.get('severity', 'medium').title()}] {issue.get('issue_code')}"
-            if issue.get('feature_id') is not None:
-                label += f" for record {issue.get('feature_id')}"
-            label += f": {issue.get('message')}"
-            bullets.append(ListItem(Paragraph(label, body_style)))
-        story.append(ListFlowable(bullets, bulletType='bullet'))
+        for issue in issues[:6]:
+            lines.append(f"- {issue.get('severity', 'unknown').title()} | {issue.get('issue_code', 'ISSUE')} | {issue.get('message', '')}")
     else:
-        story.append(Paragraph("No findings were detected by the configured checks.", body_style))
+        lines.append("No critical issues were identified in the first-pass summary.")
+    lines.extend(["", "Next Steps"])
+    for step in context.get('next_steps', [])[:4]:
+        lines.append(f"- {step}")
+    _write_simple_pdf(path, lines)
 
-    story.append(Spacer(1, 0.08 * inch))
-    story.append(Paragraph("Recommended Next Steps", heading_style))
-    next_steps = [
-        "Review high-priority findings before loading or handoff.",
-        "Confirm spatial anomalies with the source system of record.",
-        "Use issues.csv for record-level triage and assignment.",
-        "Keep the deterministic artifacts with the project audit trail.",
-    ]
-    story.append(ListFlowable([ListItem(Paragraph(item, body_style)) for item in next_steps], bulletType='bullet'))
-    doc.build(story)
+
+
+def _write_simple_pdf(path: Path, lines: list[str]) -> None:
+    def esc(text: str) -> str:
+        return text.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+
+    content_lines = ["BT", "/F1 12 Tf", "72 740 Td"]
+    first = True
+    for line in lines:
+        safe = esc(str(line))
+        if first:
+            content_lines.append(f"({safe}) Tj")
+            first = False
+        else:
+            content_lines.append("0 -16 Td")
+            content_lines.append(f"({safe}) Tj")
+    content_lines.append("ET")
+    content = "\n".join(content_lines).encode("utf-8")
+    objects: list[bytes] = []
+    objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
+    objects.append(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+    objects.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>")
+    objects.append(f"<< /Length {len(content)} >>\nstream\n".encode("utf-8") + content + b"\nendstream")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{index} 0 obj\n".encode("utf-8"))
+        pdf.extend(obj)
+        pdf.extend(b"\nendobj\n")
+    xref_start = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("utf-8"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("utf-8"))
+    pdf.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_start}\n%%EOF\n".encode("utf-8"))
+    path.write_bytes(pdf)
