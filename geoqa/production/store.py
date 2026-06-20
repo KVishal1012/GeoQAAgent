@@ -15,6 +15,8 @@ from typing import Any
 from geoqa.config import AppConfig, load_app_config
 
 ALLOWED_UPLOAD_EXTENSIONS = {".geojson", ".gpkg", ".zip"}
+RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024
+RESUMABLE_UPLOAD_CHUNK_BYTES = 6 * 1024 * 1024
 ARTIFACT_NAMES = {
     "qa_report": "qa_report.md",
     "issues_csv": "issues.csv",
@@ -362,26 +364,56 @@ class SupabaseProductionStore(BaseProductionStore):
         validation = validate_upload(filename, size_bytes, active_upload_limit_mb(self.config))
         upload_id = f"upload-{uuid.uuid4().hex[:12]}"
         object_path = f"{upload_id}/{validation.filename}"
-        signed = self._create_signed_upload_url(self.config.upload_bucket, object_path)
-        signed_url = str(signed.get("signedURL") or signed.get("signedUrl") or signed.get("url") or "")
-        token = signed.get("token")
-        if signed_url.startswith("/"):
-            signed_url = f"{self.base_url}/storage/v1{signed_url}"
-        return {
+        resolved_content_type = content_type or mimetypes.guess_type(validation.filename)[0] or "application/octet-stream"
+        use_resumable = validation.size_bytes > RESUMABLE_UPLOAD_THRESHOLD_BYTES
+        signed_url = ""
+        token = None
+        if not use_resumable:
+            signed = self._create_signed_upload_url(self.config.upload_bucket, object_path)
+            signed_url = str(signed.get("signedURL") or signed.get("signedUrl") or signed.get("url") or "")
+            token = signed.get("token")
+            if signed_url.startswith("/"):
+                signed_url = f"{self.base_url}/storage/v1{signed_url}"
+        elif not self.config.supabase_public_key:
+            raise ProductionStoreError(
+                "Large resumable uploads require SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY in addition to Supabase storage."
+            )
+
+        session = {
             "upload_id": upload_id,
             "filename": validation.filename,
-            "content_type": content_type or mimetypes.guess_type(validation.filename)[0] or "application/octet-stream",
+            "content_type": resolved_content_type,
             "size_bytes": validation.size_bytes,
             "storage_provider": "supabase",
             "upload_bucket": self.config.upload_bucket,
             "storage_path": object_path,
             "direct_upload": True,
-            "upload_url": signed_url,
-            "upload_token": token,
-            "upload_method": "PUT",
-            "upload_headers": {"Content-Type": content_type or "application/octet-stream"},
+            "resumable_upload": use_resumable,
             "max_upload_mb": active_upload_limit_mb(self.config),
         }
+        if use_resumable:
+            storage_host = self.base_url.replace("https://", "https://").replace(".supabase.co", ".storage.supabase.co")
+            session.update(
+                {
+                    "resumable_upload_url": f"{storage_host}/storage/v1/upload/resumable",
+                    "resumable_chunk_bytes": RESUMABLE_UPLOAD_CHUNK_BYTES,
+                    "resumable_headers": {
+                        "Authorization": f"Bearer {self.config.supabase_public_key}",
+                        "apikey": self.config.supabase_public_key,
+                        "x-upsert": "true",
+                    },
+                }
+            )
+        else:
+            session.update(
+                {
+                    "upload_url": signed_url,
+                    "upload_token": token,
+                    "upload_method": "PUT",
+                    "upload_headers": {"Content-Type": resolved_content_type},
+                }
+            )
+        return session
 
     def complete_upload(self, *, upload_id: str, filename: str, storage_path: str, size_bytes: int, content_type: str | None = None) -> dict[str, Any]:
         validation = validate_upload(filename, size_bytes, active_upload_limit_mb(self.config))

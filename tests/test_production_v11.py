@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from geoqa.config import load_app_config
-from geoqa.production.store import LocalProductionStore, ProductionStoreError
+from geoqa.production.store import LocalProductionStore, ProductionStoreError, SupabaseProductionStore
 from geoqa.production.worker import process_next_run
 
 
@@ -50,6 +50,36 @@ def test_local_upload_session_and_completion_validate_metadata(monkeypatch, tmp_
     assert session["fallback_upload_url"] == "/api/v1/uploads"
     assert complete["upload_completed_at"]
 
+
+
+
+def test_supabase_large_upload_requires_public_key(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
+    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+    store = SupabaseProductionStore(load_app_config())
+
+    with pytest.raises(ProductionStoreError, match="SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY"):
+        store.create_upload_session(filename="large.geojson", size_bytes=7 * 1024 * 1024, content_type="application/geo+json")
+
+
+def test_supabase_large_upload_session_uses_resumable_public_key(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "publishable")
+    store = SupabaseProductionStore(load_app_config())
+
+    session = store.create_upload_session(filename="large.geojson", size_bytes=7 * 1024 * 1024, content_type="application/geo+json")
+
+    assert session["direct_upload"] is True
+    assert session["resumable_upload"] is True
+    assert session["resumable_upload_url"] == "https://example.storage.supabase.co/storage/v1/upload/resumable"
+    assert session["resumable_headers"]["Authorization"] == "Bearer publishable"
+    assert session["resumable_headers"]["apikey"] == "publishable"
+    assert session["resumable_headers"]["x-upsert"] == "true"
+    assert session["resumable_chunk_bytes"] == 6 * 1024 * 1024
+    assert "upload_url" not in session
 
 def test_worker_claim_prevents_duplicate_processing(monkeypatch, tmp_path):
     _configure_local(monkeypatch, tmp_path, GEOQA_WORKER_ID="worker-a")

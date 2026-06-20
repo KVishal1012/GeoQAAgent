@@ -112,15 +112,18 @@ def test_vercel_root_contains_review_ui_contract(monkeypatch, tmp_path):
     assert "/api/v1/runs/${currentRunId}/review" in body
 
 
-def test_vercel_root_uses_signed_supabase_upload_without_tus(monkeypatch, tmp_path):
+def test_vercel_root_uses_resumable_supabase_upload_for_large_files(monkeypatch, tmp_path):
     monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
 
     client = app.test_client()
     body = client.get("/").get_data(as_text=True)
 
-    assert "upload/resumable" not in body
+    assert "tus-js-client" in body
+    assert "upload/resumable" not in body  # endpoint comes from the upload-session API, not hardcoded UI state
     assert "x-signature" not in body
-    assert "uploadLargeFileWithTus" not in body
+    assert "uploadLargeFileWithTus" in body
+    assert "session.resumable_upload" in body
+    assert "resumable_headers" in body
     assert "session.upload_url" in body
     assert "Uploading large file to Supabase Storage" in body
 

@@ -27,6 +27,7 @@ class AppConfig:
     agent_output_token_budget: int
     supabase_url: str | None
     supabase_service_role_key: str | None
+    supabase_public_key: str | None
     upload_bucket: str
     artifact_bucket: str
     max_upload_mb: int
@@ -42,6 +43,7 @@ class AppConfig:
         payload = asdict(self)
         payload["openai_api_key"] = "***configured***" if self.openai_api_key else None
         payload["supabase_service_role_key"] = "***configured***" if self.supabase_service_role_key else None
+        payload["supabase_public_key"] = "***configured***" if self.supabase_public_key else None
         return payload
 
     def validate_for_agent_provider(self, provider: str) -> None:
@@ -135,6 +137,7 @@ def load_app_config(env_file: str | None = None) -> AppConfig:
         agent_output_token_budget=agent_output_token_budget,
         supabase_url=env_values.get("SUPABASE_URL"),
         supabase_service_role_key=env_values.get("SUPABASE_SERVICE_ROLE_KEY"),
+        supabase_public_key=env_values.get("SUPABASE_PUBLISHABLE_KEY") or env_values.get("SUPABASE_ANON_KEY"),
         upload_bucket=env_values.get("GEOQA_UPLOAD_BUCKET", "geoqa-uploads").strip() or "geoqa-uploads",
         artifact_bucket=env_values.get("GEOQA_ARTIFACT_BUCKET", "geoqa-artifacts").strip() or "geoqa-artifacts",
         max_upload_mb=max_upload_mb,
@@ -166,6 +169,7 @@ def diagnose_config(config: AppConfig) -> dict[str, Any]:
             "agent_max_steps": config.agent_max_steps,
             "agent_output_token_budget": config.agent_output_token_budget,
             "supabase_configured": bool(config.supabase_url and config.supabase_service_role_key),
+            "supabase_public_key_configured": bool(config.supabase_public_key),
             "upload_bucket": config.upload_bucket,
             "artifact_bucket": config.artifact_bucket,
             "max_upload_mb": config.max_upload_mb,

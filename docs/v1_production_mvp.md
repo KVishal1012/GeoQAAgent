@@ -34,6 +34,7 @@ Required Vercel and worker environment variables:
 GEOQA_API_KEY=<internal-api-key>
 SUPABASE_URL=<project-url>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_PUBLISHABLE_KEY=<publishable-or-anon-key>
 GEOQA_UPLOAD_BUCKET=geoqa-uploads
 GEOQA_ARTIFACT_BUCKET=geoqa-artifacts
 GEOQA_MAX_UPLOAD_MB=100
@@ -100,6 +101,7 @@ Large-file mode is intentionally gated behind Supabase:
 - Keep `GEOQA_LARGE_FILE_MODE=false` for the default 100 MB MVP path.
 - Set `GEOQA_LARGE_FILE_MODE=true` only after Supabase buckets and the worker are running.
 - V1.1 allows up to `GEOQA_LARGE_FILE_MAX_UPLOAD_MB=1024` through direct Supabase upload sessions.
+- Files larger than 6 MB use Supabase resumable/TUS upload and require `SUPABASE_PUBLISHABLE_KEY` or `SUPABASE_ANON_KEY` in Vercel.
 - The Vercel multipart fallback remains capped by `GEOQA_MAX_UPLOAD_MB` and is not intended for 1 GB files.
 
 ## V1.1 Worker Safety

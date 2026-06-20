@@ -78,6 +78,7 @@ def test_diagnose_config_reports_missing_openai_settings(monkeypatch):
 def test_load_app_config_reads_production_mvp_settings(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "publishable")
     monkeypatch.setenv("GEOQA_UPLOAD_BUCKET", "uploads")
     monkeypatch.setenv("GEOQA_ARTIFACT_BUCKET", "artifacts")
     monkeypatch.setenv("GEOQA_MAX_UPLOAD_MB", "25")
@@ -92,6 +93,7 @@ def test_load_app_config_reads_production_mvp_settings(monkeypatch):
 
     assert config.supabase_url == "https://example.supabase.co"
     assert config.supabase_service_role_key == "service-role"
+    assert config.supabase_public_key == "publishable"
     assert config.upload_bucket == "uploads"
     assert config.artifact_bucket == "artifacts"
     assert config.max_upload_mb == 25
@@ -102,6 +104,7 @@ def test_load_app_config_reads_production_mvp_settings(monkeypatch):
     assert config.worker_stale_after_seconds == 60
     assert config.worker_max_attempts == 5
     assert config.to_safe_dict()["supabase_service_role_key"] == "***configured***"
+    assert config.to_safe_dict()["supabase_public_key"] == "***configured***"
 
 
 def test_load_app_config_uses_tmp_output_root_on_vercel(monkeypatch):

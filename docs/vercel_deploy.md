@@ -35,6 +35,7 @@ Authenticated API endpoints:
 - `GEOQA_API_KEY` (required to access `/api/v1/*` routes)
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PUBLISHABLE_KEY` or `SUPABASE_ANON_KEY` for browser resumable uploads
 - `GEOQA_UPLOAD_BUCKET`
 - `GEOQA_ARTIFACT_BUCKET`
 - `GEOQA_MAX_UPLOAD_MB`

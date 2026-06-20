@@ -295,6 +295,7 @@ def _landing_page_html() -> str:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GeoQA Data Readiness Audit</title>
+  <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
   <style>
     :root {
       --ink: #17231d;
@@ -596,15 +597,49 @@ def _landing_page_html() -> str:
       const initResponse = await fetch("/api/v1/uploads/init", { method: "POST", headers: headers(true), body: JSON.stringify({ filename: file.name, size_bytes: file.size, content_type: file.type || "application/octet-stream" }) });
       const session = await readJson(initResponse);
       if (!session.direct_upload) { const form = new FormData(); form.append("file", file); const uploadResponse = await fetch(session.fallback_upload_url || "/api/v1/uploads", { method: "POST", headers: headers(), body: form }); return await readJson(uploadResponse); }
-      setMessage(file.size > 6 * 1024 * 1024 ? "Uploading large file to Supabase Storage..." : "Uploading directly to Supabase Storage...");
-      const uploadResponse = await fetch(session.upload_url, { method: session.upload_method || "PUT", headers: session.upload_headers || {}, body: file });
-      if (!uploadResponse.ok) {
-        let details = "";
-        try { details = await uploadResponse.text(); } catch (_) { details = ""; }
-        throw new Error(details ? `Direct storage upload failed: ${details}` : "Direct storage upload failed.");
+      if (session.resumable_upload) {
+        await uploadLargeFileWithTus(file, session);
+      } else {
+        setMessage("Uploading directly to Supabase Storage...");
+        const uploadResponse = await fetch(session.upload_url, { method: session.upload_method || "PUT", headers: session.upload_headers || {}, body: file });
+        if (!uploadResponse.ok) {
+          let details = "";
+          try { details = await uploadResponse.text(); } catch (_) { details = ""; }
+          throw new Error(details ? `Direct storage upload failed: ${details}` : "Direct storage upload failed.");
+        }
       }
       const completeResponse = await fetch("/api/v1/uploads/complete", { method: "POST", headers: headers(true), body: JSON.stringify({ upload_id: session.upload_id, filename: session.filename, storage_path: session.storage_path, size_bytes: file.size, content_type: file.type || "application/octet-stream" }) });
       return await readJson(completeResponse);
+    }
+    async function uploadLargeFileWithTus(file, session) {
+      if (!window.tus || !window.tus.Upload) throw new Error("Large upload helper failed to load. Refresh the page and try again.");
+      setMessage("Uploading large file with resumable Supabase Storage...");
+      await new Promise((resolve, reject) => {
+        const upload = new tus.Upload(file, {
+          endpoint: session.resumable_upload_url,
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          headers: session.resumable_headers || {},
+          uploadDataDuringCreation: true,
+          removeFingerprintOnSuccess: true,
+          chunkSize: session.resumable_chunk_bytes || 6 * 1024 * 1024,
+          metadata: {
+            bucketName: session.upload_bucket,
+            objectName: session.storage_path,
+            contentType: file.type || session.content_type || "application/octet-stream",
+            cacheControl: "3600",
+          },
+          onError: (error) => reject(new Error(`Direct storage upload failed: ${error.message || error}`)),
+          onProgress: (uploaded, total) => {
+            const pct = total ? ((uploaded / total) * 100).toFixed(1) : "0.0";
+            setMessage(`Uploading large file to Supabase Storage... ${pct}%`);
+          },
+          onSuccess: () => resolve(),
+        });
+        upload.findPreviousUploads().then((previousUploads) => {
+          if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]);
+          upload.start();
+        }).catch(reject);
+      });
     }
     async function refreshRun() {
       if (!currentRunId) return;
@@ -725,6 +760,7 @@ def config() -> Any:
             "output_root": str(_output_root()),
             "has_api_key": bool(os.getenv("GEOQA_API_KEY")),
             "supabase_configured": bool(runtime.supabase_url and runtime.supabase_service_role_key),
+            "supabase_public_key_configured": bool(runtime.supabase_public_key),
             "upload_bucket": runtime.upload_bucket,
             "artifact_bucket": runtime.artifact_bucket,
             "max_upload_mb": runtime.max_upload_mb,
