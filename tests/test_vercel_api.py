@@ -111,6 +111,20 @@ def test_vercel_root_contains_review_ui_contract(monkeypatch, tmp_path):
     assert "async function reviewRun(action)" in body
     assert "/api/v1/runs/${currentRunId}/review" in body
 
+
+def test_vercel_root_uses_signed_supabase_upload_without_tus(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+
+    client = app.test_client()
+    body = client.get("/").get_data(as_text=True)
+
+    assert "upload/resumable" not in body
+    assert "x-signature" not in body
+    assert "uploadLargeFileWithTus" not in body
+    assert "session.upload_url" in body
+    assert "Uploading large file to Supabase Storage" in body
+
+
 def test_vercel_api_requires_api_key_for_v1_routes(monkeypatch, tmp_path):
     monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
     monkeypatch.setenv("GEOQA_API_KEY", "test-key")

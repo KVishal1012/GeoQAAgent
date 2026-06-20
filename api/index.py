@@ -493,7 +493,6 @@ def _landing_page_html() -> str:
     </section>
     <pre id="raw" class="raw">{}</pre>
   </main>
-  <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
   <script>
     let currentRunId = null;
     let currentRunPayload = null;
@@ -593,18 +592,17 @@ def _landing_page_html() -> str:
       $("recentRuns").innerHTML = rows.map((run) => `<div class="package-row"><span><strong>${run.filename || run.run_id}</strong><br><span class="status-note">${run.status} / ${run.readiness_band || "pending"}</span></span><button class="secondary" onclick="openRun('${run.run_id}')">Open</button></div>`).join("");
     }
     async function openRun(runId) { currentRunId = runId; $("refreshRun").disabled = false; await refreshRun(); }
-    function supabaseTusEndpoint(session) { const signedUrl = new URL(session.upload_url); const directHost = signedUrl.hostname.replace(".supabase.co", ".storage.supabase.co"); return `${signedUrl.protocol}//${directHost}/storage/v1/upload/resumable`; }
-    async function uploadLargeFileWithTus(session, file) {
-      if (!window.tus || !window.tus.Upload) throw new Error("Large-file uploader failed to load. Refresh and try again.");
-      if (!session.upload_token) throw new Error("Large-file upload token was not returned by the API.");
-      return await new Promise((resolve, reject) => { const upload = new tus.Upload(file, { endpoint: supabaseTusEndpoint(session), retryDelays: [0, 3000, 5000, 10000, 20000], uploadDataDuringCreation: true, removeFingerprintOnSuccess: true, chunkSize: 6 * 1024 * 1024, headers: { "x-signature": session.upload_token, "x-upsert": "true" }, metadata: { bucketName: session.upload_bucket || "geoqa-uploads", objectName: session.storage_path, contentType: file.type || session.content_type || "application/octet-stream", cacheControl: "3600" }, onError: (error) => reject(new Error(`Direct storage upload failed: ${error?.message || error}`)), onProgress: (bytesUploaded, bytesTotal) => setMessage(`Uploading to Supabase Storage... ${((bytesUploaded / bytesTotal) * 100).toFixed(1)}%`), onSuccess: () => resolve() }); upload.start(); });
-    }
     async function uploadDatasetFile(file) {
       const initResponse = await fetch("/api/v1/uploads/init", { method: "POST", headers: headers(true), body: JSON.stringify({ filename: file.name, size_bytes: file.size, content_type: file.type || "application/octet-stream" }) });
       const session = await readJson(initResponse);
       if (!session.direct_upload) { const form = new FormData(); form.append("file", file); const uploadResponse = await fetch(session.fallback_upload_url || "/api/v1/uploads", { method: "POST", headers: headers(), body: form }); return await readJson(uploadResponse); }
-      if (file.size > 6 * 1024 * 1024) { setMessage("Uploading large file to Supabase Storage..."); await uploadLargeFileWithTus(session, file); }
-      else { setMessage("Uploading directly to Supabase Storage..."); const uploadResponse = await fetch(session.upload_url, { method: session.upload_method || "PUT", headers: session.upload_headers || {}, body: file }); if (!uploadResponse.ok) throw new Error("Direct storage upload failed."); }
+      setMessage(file.size > 6 * 1024 * 1024 ? "Uploading large file to Supabase Storage..." : "Uploading directly to Supabase Storage...");
+      const uploadResponse = await fetch(session.upload_url, { method: session.upload_method || "PUT", headers: session.upload_headers || {}, body: file });
+      if (!uploadResponse.ok) {
+        let details = "";
+        try { details = await uploadResponse.text(); } catch (_) { details = ""; }
+        throw new Error(details ? `Direct storage upload failed: ${details}` : "Direct storage upload failed.");
+      }
       const completeResponse = await fetch("/api/v1/uploads/complete", { method: "POST", headers: headers(true), body: JSON.stringify({ upload_id: session.upload_id, filename: session.filename, storage_path: session.storage_path, size_bytes: file.size, content_type: file.type || "application/octet-stream" }) });
       return await readJson(completeResponse);
     }
