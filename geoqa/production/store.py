@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import errno
 import json
 import mimetypes
 import shutil
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,6 +19,17 @@ from geoqa.config import AppConfig, load_app_config
 ALLOWED_UPLOAD_EXTENSIONS = {".geojson", ".gpkg", ".zip"}
 RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024
 RESUMABLE_UPLOAD_CHUNK_BYTES = 6 * 1024 * 1024
+SUPABASE_REQUEST_MAX_ATTEMPTS = 3
+SUPABASE_REQUEST_RETRY_SECONDS = 0.5
+TRANSIENT_URL_ERROR_ERRNOS = {
+    errno.EBUSY,
+    errno.ECONNRESET,
+    errno.ECONNREFUSED,
+    errno.EHOSTUNREACH,
+    errno.ENETUNREACH,
+    errno.ETIMEDOUT,
+}
+TRANSIENT_HTTP_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 ARTIFACT_NAMES = {
     "qa_report": "qa_report.md",
     "issues_csv": "issues.csv",
@@ -617,11 +630,29 @@ class SupabaseProductionStore(BaseProductionStore):
         return json.loads(raw.decode("utf-8")) if raw else {}
 
     def _request_bytes(self, request: urllib.request.Request) -> bytes:
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                return response.read()
-        except urllib.error.HTTPError as exc:
-            details = exc.read().decode("utf-8", errors="replace")
-            raise ProductionStoreError(f"Supabase request failed with HTTP {exc.code}: {details}") from exc
-        except urllib.error.URLError as exc:
-            raise ProductionStoreError(f"Supabase request failed: {exc.reason}") from exc
+        last_error: Exception | None = None
+        for attempt in range(1, SUPABASE_REQUEST_MAX_ATTEMPTS + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    return response.read()
+            except urllib.error.HTTPError as exc:
+                details = exc.read().decode("utf-8", errors="replace")
+                if exc.code not in TRANSIENT_HTTP_STATUS_CODES or attempt == SUPABASE_REQUEST_MAX_ATTEMPTS:
+                    raise ProductionStoreError(f"Supabase request failed with HTTP {exc.code}: {details}") from exc
+                last_error = exc
+            except urllib.error.URLError as exc:
+                if not _is_transient_url_error(exc) or attempt == SUPABASE_REQUEST_MAX_ATTEMPTS:
+                    raise ProductionStoreError(f"Supabase request failed: {exc.reason}") from exc
+                last_error = exc
+            time.sleep(SUPABASE_REQUEST_RETRY_SECONDS * attempt)
+
+        raise ProductionStoreError(f"Supabase request failed after retries: {last_error}")
+
+
+def _is_transient_url_error(exc: urllib.error.URLError) -> bool:
+    reason = exc.reason
+    if isinstance(reason, TimeoutError):
+        return True
+    if isinstance(reason, OSError):
+        return reason.errno in TRANSIENT_URL_ERROR_ERRNOS
+    return False

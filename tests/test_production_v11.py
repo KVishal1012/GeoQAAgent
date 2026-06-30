@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import errno
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -80,6 +82,72 @@ def test_supabase_large_upload_session_uses_resumable_public_key(monkeypatch):
     assert session["resumable_headers"]["x-upsert"] == "true"
     assert session["resumable_chunk_bytes"] == 6 * 1024 * 1024
     assert "upload_url" not in session
+
+
+
+class _FakeResponse:
+    def __init__(self, payload: bytes = b"{}") -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self) -> bytes:
+        return self.payload
+
+    def close(self) -> None:
+        return None
+
+
+def test_supabase_request_retries_transient_device_busy(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    store = SupabaseProductionStore(load_app_config())
+    calls = {"count": 0}
+
+    def fake_urlopen(request, timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise urllib.error.URLError(OSError(errno.EBUSY, "Device or resource busy"))
+        return _FakeResponse(b'{"ok": true}')
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("geoqa.production.store.time.sleep", lambda seconds: None)
+
+    payload = store._request_json(urllib.request.Request("https://example.supabase.co/rest/v1/geoqa_runs"))
+
+    assert payload == {"ok": True}
+    assert calls["count"] == 2
+
+
+def test_supabase_request_retries_transient_http_error(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    store = SupabaseProductionStore(load_app_config())
+    calls = {"count": 0}
+
+    def fake_urlopen(request, timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise urllib.error.HTTPError(
+                "https://example.supabase.co/rest/v1/geoqa_runs",
+                503,
+                "Service Unavailable",
+                hdrs=None,
+                fp=_FakeResponse(b"temporary"),
+            )
+        return _FakeResponse(b'{"ok": true}')
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("geoqa.production.store.time.sleep", lambda seconds: None)
+
+    payload = store._request_json(urllib.request.Request("https://example.supabase.co/rest/v1/geoqa_runs"))
+
+    assert payload == {"ok": True}
+    assert calls["count"] == 2
 
 def test_worker_claim_prevents_duplicate_processing(monkeypatch, tmp_path):
     _configure_local(monkeypatch, tmp_path, GEOQA_WORKER_ID="worker-a")
