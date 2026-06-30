@@ -1,0 +1,27 @@
+# Local caches and deploy tooling
+.npm-cache/
+.vercel-cli/
+.npm/
+node_modules/
+
+# Git and local runtime state
+.git/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+._*
+.env
+vercel.env
+
+# Generated runtime outputs
+outputs/
+demo/output/run_log.jsonl
+demo/output/geoqa-*/
+
+# Non-runtime project assets for the Vercel API function
+tests/
+.github/
+docs/
+assets/
