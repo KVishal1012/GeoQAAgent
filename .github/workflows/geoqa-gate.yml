@@ -1,0 +1,50 @@
+name: GeoQA Pipeline Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset_path:
+        description: "Repository-relative path to a .geojson, .gpkg, or zipped shapefile"
+        required: true
+      fail_below:
+        description: "Minimum readiness score required to pass"
+        required: false
+        default: "85"
+  pull_request:
+    paths:
+      - "data/**"
+      - "datasets/**"
+      - "geoqa/**"
+      - "app.py"
+      - "requirements.txt"
+
+jobs:
+  geoqa-gate:
+    runs-on: ubuntu-latest
+    env:
+      GEOQA_INPUT_PATH: ${{ github.event.inputs.dataset_path || 'demo/input/centreline_intersections_sample.zip' }}
+      GEOQA_FAIL_BELOW: ${{ github.event.inputs.fail_below || '85' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run GeoQA readiness gate
+        run: |
+          python app.py "$GEOQA_INPUT_PATH" \
+            --output-dir outputs/ci \
+            --fail-below "$GEOQA_FAIL_BELOW"
+
+      - name: Upload GeoQA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoqa-artifacts
+          path: outputs/ci

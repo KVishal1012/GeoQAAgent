@@ -9,3 +9,5 @@ demo/output/geoqa-*/
 ._*
 .vercel
 vercel.env
+.npm-cache/
+.vercel-cli/

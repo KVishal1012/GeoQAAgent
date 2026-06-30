@@ -9,6 +9,8 @@ from geoqa.ingestion.validators import ValidationError
 from geoqa.llm.gateway import LLMGatewayError, StaticFileLLMGateway, build_openai_gateway
 from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts, review_existing_agent_report
 from geoqa.review.human_review import ReviewError
+from geoqa.ops.pipeline_gate import PIPELINE_GATE_EXIT_CODE, evaluate_pipeline_gate, validate_fail_below_threshold
+from geoqa.ops.watcher import watch_folder
 from geoqa.runner import run_geoqa
 from geoqa.workflows import HandoffBundleError, compare_run_outputs, export_handoff_bundle, generate_fix_plan_artifacts
 
@@ -49,6 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--playbook-dir", default=None, help="Optional directory containing fix playbooks for agent runs and fix plans.")
     parser.add_argument("--static-report-file", default=None, help="Static agent report markdown used when --llm-provider static is selected.")
     parser.add_argument("--agent-prompt", default="technical_report_v2", choices=["technical_report_v2", "executive_summary_v2", "fix_recommendation_v2", "handoff_summary_v1"], help="Prompt template used for V4 agent report generation.")
+    parser.add_argument("--fail-below", type=int, default=None, help="Exit with code 2 when the readiness score is below this threshold. Intended for CI/ETL gates.")
+    parser.add_argument("--watch-dir", default=None, help="Folder to scan for new geospatial drops and QA automatically.")
+    parser.add_argument("--watch-state-file", default=None, help="Optional JSON state file used by --watch-dir to avoid reprocessing the same drop.")
+    parser.add_argument("--watch-interval-seconds", type=float, default=60.0, help="Polling interval for continuous --watch-dir mode.")
+    parser.add_argument("--watch-min-age-seconds", type=float, default=0.0, help="Minimum file age before watcher processing, useful to avoid partially copied files.")
+    parser.add_argument("--watch-once", action="store_true", help="Scan --watch-dir once and exit instead of polling continuously.")
+    parser.add_argument("--slack-webhook-url", default=None, help="Optional Slack incoming webhook URL for failed --fail-below watcher alerts.")
     return parser
 
 
@@ -57,6 +66,11 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     comparison_requested = bool(args.compare_run_dir or args.target_run_dir)
     existing_run_action_requested = args.generate_fix_plan or args.export_handoff_bundle
     agent_requested = args.agent_run or args.agent_report
+    watch_requested = bool(args.watch_dir)
+    try:
+        validate_fail_below_threshold(args.fail_below)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.approve_agent_report and args.reject_agent_report:
         parser.error("--approve-agent-report and --reject-agent-report cannot be used together")
     if review_action_requested and not args.reviewer_name:
@@ -79,8 +93,14 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         parser.error("input_path cannot be combined with run comparison")
     if args.comparison_key and not args.export_handoff_bundle:
         parser.error("--comparison-key is only valid with --export-handoff-bundle")
-    if not args.review_output_dir and not args.input_path and not args.diagnose_config and not comparison_requested:
-        parser.error("input_path is required unless --review-output-dir or run comparison is used")
+    if args.slack_webhook_url and not watch_requested:
+        parser.error("--slack-webhook-url is only valid with --watch-dir")
+    if args.watch_once and not watch_requested:
+        parser.error("--watch-once requires --watch-dir")
+    if watch_requested and (args.input_path or args.review_output_dir or comparison_requested or existing_run_action_requested or agent_requested or review_action_requested):
+        parser.error("--watch-dir cannot be combined with input_path, comparison, agent, or existing-run workflow actions")
+    if not args.review_output_dir and not args.input_path and not args.diagnose_config and not comparison_requested and not watch_requested:
+        parser.error("input_path is required unless --review-output-dir, --watch-dir, or run comparison is used")
 
 
 def main() -> None:
@@ -93,6 +113,28 @@ def main() -> None:
         validate_args(args, parser)
         if args.diagnose_config:
             print(json.dumps(diagnose_config(config), indent=2))
+            return
+
+        if args.watch_dir:
+            watch_result = watch_folder(
+                args.watch_dir,
+                output_root=args.output_dir,
+                state_file=args.watch_state_file,
+                fail_below=args.fail_below,
+                required_columns=args.required_columns,
+                target_crs=args.target_crs,
+                precision_grid_size=args.precision_grid_size,
+                enable_sqlserver_checks=not args.skip_sqlserver_checks,
+                enable_linear_reference_checks=not args.skip_linear_reference_checks,
+                slack_webhook_url=args.slack_webhook_url,
+                min_age_seconds=args.watch_min_age_seconds,
+                interval_seconds=args.watch_interval_seconds,
+                once=args.watch_once,
+            )
+            print(json.dumps(watch_result, indent=2))
+            blocked = [row for row in watch_result.get("processed", []) if row.get("pipeline_gate") and not row["pipeline_gate"].get("passed", True)]
+            if blocked:
+                raise SystemExit(PIPELINE_GATE_EXIT_CODE)
             return
 
         if args.review_output_dir:
@@ -169,7 +211,14 @@ def main() -> None:
     except (LLMGatewayError, ReviewError, HandoffBundleError) as exc:
         print(f"Agent report error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-    print(json.dumps(result.to_dict(), indent=2))
+    payload = result.to_dict()
+    gate_result = evaluate_pipeline_gate(result.run_record.readiness_score, args.fail_below)
+    if gate_result:
+        payload["pipeline_gate"] = gate_result.to_dict()
+    print(json.dumps(payload, indent=2))
+    if gate_result and not gate_result.passed:
+        print(gate_result.message, file=sys.stderr)
+        raise SystemExit(gate_result.exit_code)
 
 
 if __name__ == "__main__":

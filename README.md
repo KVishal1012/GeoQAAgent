@@ -2,6 +2,25 @@
 
 GeoQA Agent validates geospatial files, normalizes their geometry and CRS, runs deterministic QA checks, assigns severity, computes a readiness score, and writes a report plus issue CSV.
 
+
+## Pipeline Gates And Watch Mode
+
+GeoQA can block bad data before ingestion instead of only reporting after the fact.
+
+```bash
+python app.py path/to/dataset.zip --output-dir outputs/gates --fail-below 85
+```
+
+`--fail-below` writes the normal QA artifacts, adds a `pipeline_gate` result to the JSON output, and exits with code `2` when the readiness score is below threshold. A GitHub Actions workflow is included at `.github/workflows/geoqa-gate.yml`.
+
+For folder drops, run watch mode:
+
+```bash
+python app.py --watch-dir /data/incoming --output-dir outputs/watch --watch-once --fail-below 85
+```
+
+Continuous watch mode can poll a folder and optionally send Slack alerts when readiness falls below threshold. See `docs/pipeline_gate_and_watch.md`.
+
 ## Why GeoQA Agent?
 
 GIS and infrastructure teams often discover data quality problems too late: during database loading, dashboard development, spatial joins, or model execution.
