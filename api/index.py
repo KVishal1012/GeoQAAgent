@@ -298,110 +298,132 @@ def _landing_page_html() -> str:
   <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
   <style>
     :root {
-      --ink: #17231d;
-      --muted: #65736b;
-      --soft: #f4f7f1;
-      --paper: #fffdf7;
-      --panel: #fbfaf3;
-      --line: #d9e1d6;
-      --green: #1f6b4f;
-      --green-2: #0f4c39;
-      --steel: #3b6674;
-      --amber: #c8812d;
-      --red: #a63d32;
-      --shadow: rgba(23, 35, 29, .08);
+      --bg: #eef5f1;
+      --surface: #fbfdf8;
+      --surface-2: #f2f8f5;
+      --ink: #10231f;
+      --muted: #66756f;
+      --line: #d7e4df;
+      --teal: #0d5b55;
+      --teal-2: #073b3a;
+      --lime: #b9e769;
+      --blue: #315f76;
+      --amber: #d08a2f;
+      --red: #b84235;
+      --shadow: rgba(16, 35, 31, .1);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Aptos", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       color: var(--ink);
       background:
-        linear-gradient(135deg, rgba(31,107,79,.08), transparent 32%),
-        linear-gradient(180deg, #fcfdf8 0%, #edf3e9 100%);
+        radial-gradient(circle at 18% 12%, rgba(185,231,105,.24), transparent 28%),
+        radial-gradient(circle at 84% 4%, rgba(49,95,118,.12), transparent 24%),
+        linear-gradient(180deg, #f8fbf6 0%, var(--bg) 100%);
+      font-family: "IBM Plex Sans", "Aptos", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
     }
     button, input, select, textarea { font: inherit; }
-    button { border: 0; border-radius: 8px; padding: 10px 13px; background: var(--green); color: white; font-weight: 800; cursor: pointer; }
-    button.secondary { background: #e4ede4; color: var(--green-2); }
-    button.ghost { background: transparent; color: var(--green-2); border: 1px solid var(--line); }
-    button.danger { background: #f2ded9; color: var(--red); }
+    button { border: 0; border-radius: 10px; padding: 10px 13px; background: var(--teal); color: white; font-weight: 850; cursor: pointer; }
+    button.secondary { background: #dfece7; color: var(--teal-2); }
+    button.ghost { background: transparent; color: var(--teal-2); border: 1px solid var(--line); }
+    button.danger { background: #f3ded8; color: var(--red); }
     button:disabled { opacity: .5; cursor: not-allowed; }
-    input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; color: var(--ink); background: white; }
-    input[type="file"] { border-style: dashed; background: #f7fbf3; padding: 15px; }
+    input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; color: var(--ink); background: white; }
+    input[type="file"] { border-style: dashed; background: #f4faf4; padding: 14px; }
     textarea { min-height: 72px; resize: vertical; }
-    label { display: block; margin: 11px 0 6px; font-weight: 760; font-size: 13px; }
-    .shell { width: min(1380px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 34px; }
-    .topbar { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 14px 0 18px; }
-    .brand { display: flex; gap: 12px; align-items: center; }
-    .mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 9px; background: var(--green-2); color: #f7fff5; font-weight: 900; }
+    label { display: block; margin: 10px 0 6px; font-weight: 800; font-size: 12px; color: #314540; }
     h1, h2, h3, p { margin-top: 0; }
-    h1 { margin-bottom: 2px; font-size: 24px; line-height: 1.1; }
-    h2 { margin-bottom: 12px; font-size: 17px; }
-    h3 { margin-bottom: 8px; font-size: 14px; }
+    h1 { margin-bottom: 3px; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.04em; line-height: 1; }
+    h2 { margin-bottom: 12px; font-size: 17px; letter-spacing: -.015em; }
+    h3 { margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
     p { color: var(--muted); line-height: 1.5; }
-    .subtitle { margin: 0; font-size: 13px; }
-    .top-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
-    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 9px; background: #e7eee6; color: var(--green-2); font-size: 12px; font-weight: 800; }
-    .pill.amber { background: #f7ead7; color: #855016; }
-    .panel { background: rgba(255,253,247,.94); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 14px 44px var(--shadow); }
+    .shell { width: min(1440px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 34px; }
+    .topbar { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; margin-bottom: 14px; }
+    .brand { display: flex; gap: 12px; align-items: center; }
+    .mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #fafff6; background: linear-gradient(135deg, var(--teal-2), var(--teal)); font-weight: 950; box-shadow: 0 14px 28px rgba(7,59,58,.18); }
+    .subtitle { margin: 0; font-size: 13px; color: var(--muted); }
+    .command { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .top-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 7px 10px; border: 1px solid rgba(13,91,85,.12); background: rgba(251,253,248,.78); color: var(--teal-2); font-size: 12px; font-weight: 850; }
+    .pill.hot { border-color: rgba(184,66,53,.25); color: var(--red); background: #fbebe6; }
+    .pill.lime { background: rgba(185,231,105,.22); }
+    .panel { background: rgba(251,253,248,.94); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 18px 50px var(--shadow); }
     .panel-body { padding: 18px; }
-    .console { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(330px, .75fr); gap: 14px; }
-    .evidence-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(310px, .75fr); gap: 14px; }
-    .map-panel { min-height: 360px; position: relative; overflow: hidden; background: linear-gradient(145deg, #e9f1e6 0%, #f9fbf5 100%); }
-    .map-toolbar { position: absolute; z-index: 3; left: 16px; top: 14px; display: flex; gap: 6px; }
-    .seg { border: 1px solid rgba(31,107,79,.22); background: rgba(255,255,255,.86); color: var(--green-2); padding: 7px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; }
-    .map-canvas { position: absolute; inset: 0; }
-    .gridline { position: absolute; background: rgba(59,102,116,.13); }
-    .gridline.v1 { left: 18%; top: 0; bottom: 0; width: 1px; } .gridline.v2 { left: 43%; top: 0; bottom: 0; width: 1px; } .gridline.v3 { left: 70%; top: 0; bottom: 0; width: 1px; }
-    .gridline.h1 { top: 24%; left: 0; right: 0; height: 1px; } .gridline.h2 { top: 52%; left: 0; right: 0; height: 1px; } .gridline.h3 { top: 78%; left: 0; right: 0; height: 1px; }
-    .route { position: absolute; height: 3px; background: var(--steel); opacity: .72; border-radius: 4px; transform-origin: left center; }
-    .r1 { left: 16%; top: 54%; width: 310px; transform: rotate(-12deg); } .r2 { left: 22%; top: 45%; width: 230px; transform: rotate(22deg); }
-    .r3 { left: 27%; top: 63%; width: 260px; transform: rotate(7deg); } .r4 { left: 34%; top: 38%; width: 170px; transform: rotate(88deg); }
-    .cluster { position: absolute; left: 26%; top: 48%; width: 168px; height: 118px; border: 1px solid rgba(31,107,79,.2); border-radius: 50%; background: rgba(31,107,79,.08); }
-    .outlier { position: absolute; right: 16%; top: 18%; width: 15px; height: 15px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 8px rgba(166,61,50,.14); }
-    .callout { position: absolute; right: 7%; top: 25%; max-width: 220px; padding: 10px 11px; border-radius: 8px; background: rgba(255,253,247,.95); border: 1px solid #efc7bd; color: var(--red); font-size: 12px; font-weight: 800; }
-    .map-empty { position: absolute; left: 20px; right: 20px; bottom: 18px; padding: 12px; border: 1px dashed var(--line); border-radius: 8px; background: rgba(255,255,255,.78); color: var(--muted); }
-    .chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
-    .chip { display: inline-flex; border: 1px solid var(--line); background: var(--soft); padding: 6px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--green-2); }
-    .decision { display: grid; gap: 10px; }
-    .score { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
-    .score-ring { width: 104px; height: 104px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--amber) 0deg 256deg, #e8eee5 256deg); }
-    .score-ring span { display: grid; place-items: center; width: 78px; height: 78px; border-radius: 50%; background: var(--paper); font-size: 24px; font-weight: 900; color: var(--green-2); }
-    .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .metric { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #f7faf4; }
-    .metric strong { display: block; font-size: 20px; }
-    .metric span { color: var(--muted); font-size: 12px; }
+    .lab-grid { display: grid; grid-template-columns: 270px minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+    .left-rail, .right-rail { display: grid; gap: 14px; }
+    .main-stage { display: grid; gap: 14px; }
     .new-run { display: none; margin-bottom: 14px; }
     .new-run.open { display: block; }
     .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
     .wide { grid-column: span 2; }
     .full { grid-column: 1 / -1; }
-    .message { min-height: 22px; margin-top: 10px; font-weight: 800; color: var(--green-2); }
+    .message { min-height: 22px; margin-top: 10px; font-weight: 850; color: var(--teal); }
     .message.error { color: var(--red); }
-    .delivery { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .65fr); gap: 14px; margin-top: 14px; }
-    .report-preview { min-height: 308px; }
-    .report-section { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
-    .triage { margin-top: 14px; overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; color: var(--muted); background: #f3f7f0; padding: 10px; border-bottom: 1px solid var(--line); }
-    td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    .severity { font-weight: 900; color: var(--green-2); }
-    .severity.high { color: var(--red); } .severity.medium { color: var(--amber); }
-    .package-list { display: grid; gap: 8px; }
-    .package-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfdf8; }
-    .package-row a { color: var(--green-2); font-weight: 900; text-decoration: none; }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 7px; }
+    .filter-chip, .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #f5faf6; color: var(--teal-2); border-radius: 999px; padding: 7px 9px; font-size: 12px; font-weight: 850; }
+    .filter-chip.active { background: var(--teal-2); color: #f8fff5; }
+    .metric-stack { display: grid; gap: 9px; }
+    .metric { padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg, #ffffff, #f7fbf7); }
+    .metric strong { display: block; font-size: 23px; line-height: 1; }
+    .metric span { color: var(--muted); font-size: 12px; font-weight: 750; }
+    .severity.high strong { color: var(--red); }
+    .severity.medium strong { color: var(--amber); }
+    .severity.low strong { color: var(--teal); }
+    .map-panel { min-height: 545px; position: relative; overflow: hidden; background: linear-gradient(145deg, #e3eee8 0%, #f7fbf5 100%); }
+    .map-head { position: relative; z-index: 4; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px; }
+    .map-title { max-width: 520px; }
+    .map-title h2 { font-size: 24px; margin: 0 0 4px; letter-spacing: -.035em; }
+    .map-title p { margin: 0; font-size: 13px; }
+    .gate-box { min-width: 190px; padding: 11px; border-radius: 14px; border: 1px solid rgba(184,66,53,.22); background: rgba(255,248,245,.92); }
+    .gate-box strong { display: block; color: var(--red); }
+    .map-canvas { position: absolute; inset: 0; }
+    .map-canvas:before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(49,95,118,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(49,95,118,.1) 1px, transparent 1px); background-size: 74px 74px; mask-image: linear-gradient(to bottom, transparent, black 10%, black 92%, transparent); }
+    .water { position: absolute; inset: 90px 42px 42px auto; width: 32%; border-radius: 48% 44% 42% 60%; background: rgba(49,95,118,.1); transform: rotate(-9deg); }
+    .borough { position: absolute; left: 24%; top: 23%; width: 270px; height: 250px; border: 1px solid rgba(13,91,85,.18); background: rgba(13,91,85,.06); border-radius: 55% 45% 50% 42%; transform: rotate(12deg); }
+    .street { position: absolute; height: 3px; border-radius: 999px; background: rgba(13,91,85,.62); transform-origin: left center; }
+    .s1 { left: 18%; top: 46%; width: 410px; transform: rotate(-17deg); } .s2 { left: 22%; top: 54%; width: 360px; transform: rotate(-17deg); }
+    .s3 { left: 26%; top: 62%; width: 320px; transform: rotate(-17deg); } .s4 { left: 28%; top: 34%; width: 235px; transform: rotate(76deg); }
+    .s5 { left: 37%; top: 28%; width: 290px; transform: rotate(79deg); } .s6 { left: 15%; top: 69%; width: 260px; transform: rotate(13deg); }
+    .cluster-dot, .outlier-dot { position: absolute; border-radius: 50%; }
+    .cluster-dot { width: 8px; height: 8px; background: var(--teal); box-shadow: 0 0 0 4px rgba(13,91,85,.1); }
+    .d1 { left: 34%; top: 45%; } .d2 { left: 39%; top: 49%; } .d3 { left: 45%; top: 43%; } .d4 { left: 48%; top: 57%; } .d5 { left: 30%; top: 61%; } .d6 { left: 52%; top: 51%; }
+    .outlier-dot { right: 17%; top: 20%; width: 16px; height: 16px; background: var(--red); box-shadow: 0 0 0 9px rgba(184,66,53,.16), 0 0 0 20px rgba(184,66,53,.07); }
+    .callout { position: absolute; right: 7%; top: 27%; z-index: 3; max-width: 250px; padding: 12px 13px; border-radius: 14px; border: 1px solid rgba(184,66,53,.22); background: rgba(255,253,248,.94); color: var(--red); font-size: 12px; font-weight: 850; }
+    .map-empty { position: absolute; z-index: 3; left: 18px; right: 18px; bottom: 18px; padding: 13px; border: 1px dashed rgba(13,91,85,.25); border-radius: 14px; background: rgba(251,253,248,.86); color: var(--muted); }
+    .evidence-strip { position: relative; z-index: 3; margin: 340px 18px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .score-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+    .score-ring { width: 118px; height: 118px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--amber) 0deg 256deg, #e4eee8 256deg); }
+    .score-ring span { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: var(--surface); font-size: 28px; font-weight: 950; color: var(--teal-2); }
+    .status-grid { display: grid; gap: 7px; margin-top: 12px; }
+    .status { display: grid; grid-template-columns: 110px 1fr; gap: 8px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 8px; }
+    .label { color: var(--muted); font-weight: 800; }
+    .value { font-weight: 850; overflow-wrap: anywhere; }
+    .package-list, .recent { display: grid; gap: 8px; }
+    .package-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px; border-bottom: 1px solid var(--line); }
+    .package-row:last-child { border-bottom: 0; }
+    .package-row a { color: var(--teal-2); font-weight: 900; text-decoration: none; }
     .status-note { font-size: 12px; font-weight: 850; color: var(--muted); }
-    .status-note.ready { color: var(--green-2); }
+    .status-note.ready { color: var(--teal); }
     .review-box { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
     .review-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .recent { display: grid; gap: 8px; max-height: 180px; overflow: auto; }
+    .recent { max-height: 220px; overflow: auto; }
     .recent button { padding: 7px 9px; }
     details { margin-top: 12px; }
-    summary { cursor: pointer; color: var(--green-2); font-weight: 900; }
-    .secondary-links a { display: inline-block; margin: 6px 7px 0 0; color: var(--green-2); font-weight: 850; text-decoration: none; }
-    .raw { display: none; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; padding: 12px; background: #14221b; color: #ecf5ec; border-radius: 8px; }
-    @media (max-width: 1060px) { .console, .evidence-grid, .delivery { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 680px) { .shell { width: min(100% - 18px, 1380px); } .topbar { grid-template-columns: 1fr; } .top-actions { justify-content: flex-start; } .form-grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } .metric-grid { grid-template-columns: 1fr; } }
+    summary { cursor: pointer; color: var(--teal-2); font-weight: 900; }
+    .secondary-links a { display: inline-block; margin: 6px 7px 0 0; color: var(--teal-2); font-weight: 850; text-decoration: none; }
+    .triage { overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--muted); background: #eef6f1; padding: 10px; border-bottom: 1px solid var(--line); }
+    td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .severity-label { font-weight: 950; color: var(--teal-2); }
+    .severity-label.high { color: var(--red); } .severity-label.medium { color: var(--amber); }
+    .timeline { display: grid; gap: 8px; }
+    .timeline-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .download-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .download-card { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+    .raw { display: none; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; padding: 12px; background: #10231f; color: #ecf5ec; border-radius: 10px; }
+    @media (max-width: 1180px) { .lab-grid { grid-template-columns: 1fr; } .left-rail, .right-rail { grid-template-columns: repeat(2, 1fr); } .map-panel { min-height: 500px; } }
+    @media (max-width: 760px) { .shell { width: min(100% - 18px, 1440px); } .topbar { grid-template-columns: 1fr; } .command, .top-actions { justify-content: flex-start; } .left-rail, .right-rail, .form-grid, .download-row { grid-template-columns: 1fr; } .wide { grid-column: auto; } .map-head, .score-card { grid-template-columns: 1fr; } .gate-box { min-width: 0; } .evidence-strip { margin-top: 315px; } }
   </style>
 </head>
 <body>
@@ -410,15 +432,18 @@ def _landing_page_html() -> str:
       <div class="brand">
         <div class="mark">GQ</div>
         <div>
-          <h1>GeoQA Data Readiness Audit</h1>
-          <p class="subtitle">Evidence Package Console for geospatial upload, QA review, and customer handoff.</p>
+          <h1>Spatial Evidence Lab</h1>
+          <p class="subtitle">GeoQA Data Readiness Audit · Evidence Package Console for upload, anomaly review, and customer handoff.</p>
         </div>
       </div>
-      <div class="top-actions">
+      <div class="command">
         <span class="pill" id="topRunStatus">No active run</span>
+        <span class="pill hot">Gate threshold 85</span>
+        <span class="pill lime">Worker async</span>
+      </div>
+      <div class="top-actions">
         <span class="pill">API __API_STATUS__</span>
         <span class="pill">Storage __STORAGE_STATUS__</span>
-        <span class="pill amber">Worker async</span>
         <button id="newRunButton">New run</button>
         <button id="refreshRun" class="secondary" disabled>Refresh status</button>
       </div>
@@ -445,52 +470,42 @@ def _landing_page_html() -> str:
       </div>
     </section>
 
-    <section class="console">
-      <div class="evidence-grid">
-        <section class="panel map-panel" aria-label="Spatial evidence">
-          <div class="map-toolbar"><span class="seg">Geometry</span><span class="seg">Anomalies</span><span class="seg">Findings</span></div>
-          <div class="map-canvas" id="mapPanel">
-            <div class="gridline v1"></div><div class="gridline v2"></div><div class="gridline v3"></div><div class="gridline h1"></div><div class="gridline h2"></div><div class="gridline h3"></div>
-            <div class="route r1"></div><div class="route r2"></div><div class="route r3"></div><div class="route r4"></div><div class="cluster"></div><div class="outlier"></div>
-            <div class="callout" id="anomalyCallout">Evidence preview appears after QA completes.</div>
-            <div class="map-empty" id="mapEmpty">Spatial evidence uses GeoQA summary metadata first: geometry type, CRS, feature count, and spatial anomaly count.</div>
-          </div>
-        </section>
-
-        <aside class="panel">
-          <div class="panel-body decision">
-            <h2>Readiness decision</h2>
-            <div class="score"><div class="score-ring"><span id="readinessScore">--</span></div><div><strong id="readinessBand">Waiting for run</strong><p id="decisionText">Upload a dataset or open a recent run to review readiness evidence.</p></div></div>
-            <div class="metric-grid"><div class="metric"><strong id="issueHigh">-</strong><span>High</span></div><div class="metric"><strong id="issueMedium">-</strong><span>Medium</span></div><div class="metric"><strong id="issueLow">-</strong><span>Low</span></div></div>
-            <div class="chip-row" id="evidenceChips"><span class="chip">No evidence loaded</span></div>
-            <div class="status"><span class="label">Run ID</span><span id="runId" class="value">Not started</span></div>
-            <div class="status"><span class="label">Status</span><span id="runStatus" class="value">Waiting</span></div>
-            <div class="status"><span class="label">Current run</span><span id="currentFilename" class="value">-</span></div>
-            <h3>Recent runs</h3>
-            <div id="recentRuns" class="recent"><p class="subtitle">Recent production runs load after page startup.</p></div>
-          </div>
-        </aside>
-      </div>
-
-      <aside class="panel">
-        <div class="panel-body">
-          <h2>Audit package</h2>
-          <div id="primaryArtifacts" class="package-list"></div>
-          <div class="review-box">
-            <h3>Reviewer gate</h3>
-            <label for="reviewerName">Reviewer name</label><input id="reviewerName" type="text" placeholder="QA Reviewer" />
-            <label for="reviewNotes">Review notes</label><textarea id="reviewNotes" placeholder="Approval or rejection notes"></textarea>
-            <div class="review-actions"><button id="approvePackage" disabled>Approve package</button><button id="rejectPackage" class="danger" disabled>Reject</button></div>
-            <p id="reviewStatus" class="subtitle">Review is available when an AI draft exists for a completed run.</p>
-          </div>
-          <details><summary>Secondary artifacts</summary><div id="secondaryArtifacts" class="secondary-links"></div></details>
-        </div>
+    <section class="lab-grid">
+      <aside class="left-rail">
+        <section class="panel"><div class="panel-body">
+          <h2>Issue filters</h2>
+          <div class="filter-row"><span class="filter-chip active">All findings</span><span class="filter-chip">High</span><span class="filter-chip">Geometry</span><span class="filter-chip">Schema</span><span class="filter-chip">Anomalies</span></div>
+          <div class="metric-stack" style="margin-top: 12px;"><div class="metric severity high"><strong id="issueHigh">-</strong><span>High findings</span></div><div class="metric severity medium"><strong id="issueMedium">-</strong><span>Medium findings</span></div><div class="metric severity low"><strong id="issueLow">-</strong><span>Low findings</span></div></div>
+        </div></section>
+        <section class="panel"><div class="panel-body">
+          <h2>Run index</h2>
+          <div id="recentRuns" class="recent"><p class="subtitle">Recent production runs load after page startup.</p></div>
+        </div></section>
       </aside>
-    </section>
 
-    <section class="delivery">
-      <section class="panel report-preview"><div class="panel-body" id="reportPreview"><h2>Customer report preview</h2><p>Open or complete a run to preview the customer-facing audit narrative.</p></div></section>
-      <section class="panel triage"><div class="panel-body"><h2>Issue triage</h2><table><thead><tr><th>Severity</th><th>Finding</th><th>Affected record/column</th><th>Why it matters</th><th>Suggested action</th></tr></thead><tbody id="triageBody"><tr><td colspan="5">Issue triage appears after QA completes. Use Issues CSV for record-level detail.</td></tr></tbody></table></div></section>
+      <section class="main-stage">
+        <section class="panel map-panel" aria-label="Spatial evidence">
+          <div class="map-head">
+            <div class="map-title"><h2>Spatial evidence</h2><p>Map-first evidence preview for geometry type, CRS, feature count, extent, and spatial anomaly signals.</p></div>
+            <div class="gate-box"><strong id="gateLabel">Pipeline gate pending</strong><span class="status-note">Use `--fail-below` in CI or ETL gates.</span></div>
+          </div>
+          <div class="map-canvas" id="mapPanel"><div class="water"></div><div class="borough"></div><div class="street s1"></div><div class="street s2"></div><div class="street s3"></div><div class="street s4"></div><div class="street s5"></div><div class="street s6"></div><div class="cluster-dot d1"></div><div class="cluster-dot d2"></div><div class="cluster-dot d3"></div><div class="cluster-dot d4"></div><div class="cluster-dot d5"></div><div class="cluster-dot d6"></div><div class="outlier-dot"></div><div class="callout" id="anomalyCallout">Evidence preview appears after QA completes.</div><div class="map-empty" id="mapEmpty">Spatial evidence uses GeoQA summary metadata first: geometry type, CRS, feature count, and spatial anomaly count.</div></div>
+          <div class="evidence-strip" id="evidenceChips"><span class="chip">No evidence loaded</span></div>
+        </section>
+        <section class="panel triage"><div class="panel-body"><h2>Issue triage</h2><table><thead><tr><th>Severity</th><th>Finding</th><th>Affected record/column</th><th>Why it matters</th><th>Suggested action</th></tr></thead><tbody id="triageBody"><tr><td colspan="5">Issue triage appears after QA completes. Use Issues CSV for record-level detail.</td></tr></tbody></table></div></section>
+        <section class="panel"><div class="panel-body"><h2>Comparison delta</h2><div class="timeline"><div class="timeline-row"><span>Previous</span><span>Readiness comparison appears after prior runs are selected.</span><strong>--</strong></div><div class="timeline-row"><span>Current</span><span id="comparisonDelta">Awaiting completed run.</span><strong id="comparisonScore">--</strong></div></div></div></section>
+      </section>
+
+      <aside class="right-rail">
+        <section class="panel"><div class="panel-body decision">
+          <h2>Readiness decision</h2>
+          <div class="score-card"><div class="score-ring"><span id="readinessScore">--</span></div><div><strong id="readinessBand">Waiting for run</strong><p id="decisionText">Upload a dataset or open a recent run to review readiness evidence.</p></div></div>
+          <div class="status-grid"><div class="status"><span class="label">Run ID</span><span id="runId" class="value">Not started</span></div><div class="status"><span class="label">Status</span><span id="runStatus" class="value">Waiting</span></div><div class="status"><span class="label">Current run</span><span id="currentFilename" class="value">-</span></div></div>
+        </div></section>
+        <section class="panel"><div class="panel-body"><h2>Primary downloads</h2><div id="primaryArtifacts" class="package-list"></div><div class="download-row" style="margin-top: 12px;"><div class="download-card"><strong>Customer report PDF</strong><p class="subtitle">Buyer-ready summary.</p></div><div class="download-card"><strong>Issues CSV</strong><p class="subtitle">Record-level evidence.</p></div><div class="download-card"><strong>Handoff bundle</strong><p class="subtitle">Package ZIP.</p></div></div><details><summary>Secondary artifacts</summary><div id="secondaryArtifacts" class="secondary-links"></div></details></div></section>
+        <section class="panel"><div class="panel-body"><h2>Reviewer approval</h2><div class="review-box"><label for="reviewerName">Reviewer name</label><input id="reviewerName" type="text" placeholder="QA Reviewer" /><label for="reviewNotes">Review notes</label><textarea id="reviewNotes" placeholder="Approval or rejection notes"></textarea><div class="review-actions"><button id="approvePackage" disabled>Approve package</button><button id="rejectPackage" class="danger" disabled>Reject</button></div><p id="reviewStatus" class="subtitle">Review is available when an AI draft exists for a completed run.</p></div></div></section>
+        <section class="panel"><div class="panel-body" id="reportPreview"><h2>Customer report preview</h2><p>Open or complete a run to preview the customer-facing audit narrative.</p></div></section>
+      </aside>
     </section>
     <pre id="raw" class="raw">{}</pre>
   </main>
@@ -528,7 +543,7 @@ def _landing_page_html() -> str:
       const crs = payload.crs || dataset.crs || profile.crs || payload.target_crs || "CRS pending";
       const featureCount = payload.feature_count || dataset.feature_count || "Feature count pending";
       const anomalyCount = anomalies.count ?? 0;
-      $("evidenceChips").innerHTML = [`<span class="chip">${geometry}</span>`, `<span class="chip">${crs}</span>`, `<span class="chip">${featureCount} features</span>`, `<span class="chip">${anomalyCount} spatial anomalies</span>`].join("");
+      $("evidenceChips").innerHTML = [`<span class="chip">${geometry}</span>`, `<span class="chip">${crs}</span>`, `<span class="chip">${featureCount} features</span>`, `<span class="chip">${anomalyCount} spatial anomalies</span>`, `<span class="chip">SQL Server risk review</span>`].join("");
       $("anomalyCallout").textContent = payload.status === "completed" ? (anomalyCount ? `Spatial anomaly: ${anomalyCount} flagged` : "No strong spatial outliers detected") : "Evidence preview appears after QA completes.";
       $("mapEmpty").textContent = payload.status === "completed" ? `Spatial evidence: ${geometry}, ${crs}.` : "Evidence preview appears after QA completes.";
     }
@@ -538,10 +553,10 @@ def _landing_page_html() -> str:
       const filename = payload.filename || "No dataset selected";
       const profile = payload.geometry_profile || {};
       const anomalies = payload.spatial_anomalies || {};
-      $("reportPreview").innerHTML = `<h2>GeoQA Data Readiness Audit</h2><p><strong>${filename}</strong></p><div class="chip-row"><span class="chip">${score}/100</span><span class="chip">${band}</span><span class="chip">${profile.primary_geometry_label || "Geometry pending"}</span><span class="chip">${anomalies.count ?? 0} spatial outliers</span></div><div class="report-section"><h3>Executive Summary</h3><p>${decisionFor(payload)}</p></div><div class="report-section"><h3>Geometry Profile</h3><p>${profile.primary_geometry_label || "Geometry profile appears after QA completes."}</p></div><div class="report-section"><h3>Recommended Fixes</h3><p>Use the issue triage table and Issues CSV for evidence-backed remediation.</p></div>`;
+      $("reportPreview").innerHTML = `<h2>Customer report preview</h2><p><strong>${filename}</strong></p><div class="filter-row"><span class="chip">${score}/100</span><span class="chip">${band}</span><span class="chip">${profile.primary_geometry_label || "Geometry pending"}</span><span class="chip">${anomalies.count ?? 0} spatial outliers</span></div><p style="margin-top: 12px;">${decisionFor(payload)}</p>`;
     }
     function decisionFor(payload) {
-      if (payload.status !== "completed") return "Run the deterministic QA pipeline to produce an evidence-backed readiness decision.";
+      if (payload.status !== "completed") return "Run deterministic QA to produce an evidence-backed readiness decision before ETL, dashboarding, SQL loading, or handoff.";
       const band = payload.readiness_band || "needs_review";
       const anomalies = payload.spatial_anomalies || {};
       if (band === "ready") return "Ready for review before handoff. Keep the QA artifacts with the downstream package.";
@@ -557,7 +572,7 @@ def _landing_page_html() -> str:
       if ((counts.medium || 0) > 0) rows.push(["medium", "Medium-severity QA findings", `${counts.medium} finding(s)`, "Medium findings may create downstream review or cleanup work.", "Review before migration, reporting, or handoff."]);
       if ((anomalies.count || 0) > 0) rows.push(["medium", "Spatial outlier", `${anomalies.count} feature(s)`, "A feature far from the main cluster can break spatial joins, maps, or summaries.", "Confirm whether the outlier belongs in this dataset."]);
       if (!rows.length) rows.push(["low", "No blocking summary findings", "Dataset summary", "The summary-level view did not identify a blocking issue.", "Download Issues CSV for record-level evidence."]);
-      $("triageBody").innerHTML = rows.map((row) => `<tr><td class="severity ${row[0]}">${titleCase(row[0])}</td><td>${row[1]}</td><td>${row[2]}</td><td>${row[3]}</td><td>${row[4]}</td></tr>`).join("");
+      $("triageBody").innerHTML = rows.map((row) => `<tr><td class="severity-label ${row[0]}">${titleCase(row[0])}</td><td>${row[1]}</td><td>${row[2]}</td><td>${row[3]}</td><td>${row[4]}</td></tr>`).join("");
     }
     function renderReview(payload) {
       const status = payload.review_status || {};
@@ -579,6 +594,9 @@ def _landing_page_html() -> str:
       $("readinessBand").textContent = titleCase(payload.readiness_band || "Waiting for run");
       $("decisionText").textContent = decisionFor(payload);
       $("issueHigh").textContent = counts.high ?? "-"; $("issueMedium").textContent = counts.medium ?? "-"; $("issueLow").textContent = counts.low ?? "-";
+      $("gateLabel").textContent = payload.status === "completed" ? `${payload.readiness_score ?? "--"}/100 readiness evidence` : "Pipeline gate pending";
+      $("comparisonDelta").textContent = payload.status === "completed" ? "Current run is ready for comparison against a prior dataset version." : "Awaiting completed run.";
+      $("comparisonScore").textContent = payload.readiness_score ?? "--";
       renderEvidence(payload); renderReportPreview(payload); renderTriage(payload); renderReview(payload);
     }
     async function loadArtifacts(runId) {
@@ -597,16 +615,10 @@ def _landing_page_html() -> str:
       const initResponse = await fetch("/api/v1/uploads/init", { method: "POST", headers: headers(true), body: JSON.stringify({ filename: file.name, size_bytes: file.size, content_type: file.type || "application/octet-stream" }) });
       const session = await readJson(initResponse);
       if (!session.direct_upload) { const form = new FormData(); form.append("file", file); const uploadResponse = await fetch(session.fallback_upload_url || "/api/v1/uploads", { method: "POST", headers: headers(), body: form }); return await readJson(uploadResponse); }
-      if (session.resumable_upload) {
-        await uploadLargeFileWithTus(file, session);
-      } else {
+      if (session.resumable_upload) { await uploadLargeFileWithTus(file, session); } else {
         setMessage("Uploading directly to Supabase Storage...");
         const uploadResponse = await fetch(session.upload_url, { method: session.upload_method || "PUT", headers: session.upload_headers || {}, body: file });
-        if (!uploadResponse.ok) {
-          let details = "";
-          try { details = await uploadResponse.text(); } catch (_) { details = ""; }
-          throw new Error(details ? `Direct storage upload failed: ${details}` : "Direct storage upload failed.");
-        }
+        if (!uploadResponse.ok) { let details = ""; try { details = await uploadResponse.text(); } catch (_) { details = ""; } throw new Error(details ? `Direct storage upload failed: ${details}` : "Direct storage upload failed."); }
       }
       const completeResponse = await fetch("/api/v1/uploads/complete", { method: "POST", headers: headers(true), body: JSON.stringify({ upload_id: session.upload_id, filename: session.filename, storage_path: session.storage_path, size_bytes: file.size, content_type: file.type || "application/octet-stream" }) });
       return await readJson(completeResponse);
@@ -615,30 +627,8 @@ def _landing_page_html() -> str:
       if (!window.tus || !window.tus.Upload) throw new Error("Large upload helper failed to load. Refresh the page and try again.");
       setMessage("Uploading large file with resumable Supabase Storage...");
       await new Promise((resolve, reject) => {
-        const upload = new tus.Upload(file, {
-          endpoint: session.resumable_upload_url,
-          retryDelays: [0, 3000, 5000, 10000, 20000],
-          headers: session.resumable_headers || {},
-          uploadDataDuringCreation: true,
-          removeFingerprintOnSuccess: true,
-          chunkSize: session.resumable_chunk_bytes || 6 * 1024 * 1024,
-          metadata: {
-            bucketName: session.upload_bucket,
-            objectName: session.storage_path,
-            contentType: file.type || session.content_type || "application/octet-stream",
-            cacheControl: "3600",
-          },
-          onError: (error) => reject(new Error(`Direct storage upload failed: ${error.message || error}`)),
-          onProgress: (uploaded, total) => {
-            const pct = total ? ((uploaded / total) * 100).toFixed(1) : "0.0";
-            setMessage(`Uploading large file to Supabase Storage... ${pct}%`);
-          },
-          onSuccess: () => resolve(),
-        });
-        upload.findPreviousUploads().then((previousUploads) => {
-          if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]);
-          upload.start();
-        }).catch(reject);
+        const upload = new tus.Upload(file, { endpoint: session.resumable_upload_url, retryDelays: [0, 3000, 5000, 10000, 20000], headers: session.resumable_headers || {}, uploadDataDuringCreation: true, removeFingerprintOnSuccess: true, chunkSize: session.resumable_chunk_bytes || 6 * 1024 * 1024, metadata: { bucketName: session.upload_bucket, objectName: session.storage_path, contentType: file.type || session.content_type || "application/octet-stream", cacheControl: "3600" }, onError: (error) => reject(new Error(`Direct storage upload failed: ${error.message || error}`)), onProgress: (uploaded, total) => { const pct = total ? ((uploaded / total) * 100).toFixed(1) : "0.0"; setMessage(`Uploading large file to Supabase Storage... ${pct}%`); }, onSuccess: () => resolve() });
+        upload.findPreviousUploads().then((previousUploads) => { if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]); upload.start(); }).catch(reject);
       });
     }
     async function refreshRun() {
