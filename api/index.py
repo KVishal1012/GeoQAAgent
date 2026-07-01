@@ -298,132 +298,152 @@ def _landing_page_html() -> str:
   <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
   <style>
     :root {
-      --bg: #eef5f1;
-      --surface: #fbfdf8;
-      --surface-2: #f2f8f5;
-      --ink: #10231f;
-      --muted: #66756f;
-      --line: #d7e4df;
-      --teal: #0d5b55;
-      --teal-2: #073b3a;
-      --lime: #b9e769;
-      --blue: #315f76;
-      --amber: #d08a2f;
-      --red: #b84235;
-      --shadow: rgba(16, 35, 31, .1);
+      --bg: #071211;
+      --bg-2: #0c1f1d;
+      --panel: rgba(12, 31, 29, .88);
+      --panel-2: rgba(242, 247, 230, .96);
+      --ink: #f5f7e9;
+      --ink-dark: #10231f;
+      --muted: #9fb4aa;
+      --line: rgba(214, 230, 214, .16);
+      --line-strong: rgba(206, 255, 159, .28);
+      --lime: #c8ff74;
+      --mint: #67e8c3;
+      --teal: #0f766e;
+      --amber: #ffbd66;
+      --red: #ff6f61;
+      --blue: #77b7ff;
+      --shadow: rgba(0, 0, 0, .36);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      min-height: 100vh;
       color: var(--ink);
       background:
-        radial-gradient(circle at 18% 12%, rgba(185,231,105,.24), transparent 28%),
-        radial-gradient(circle at 84% 4%, rgba(49,95,118,.12), transparent 24%),
-        linear-gradient(180deg, #f8fbf6 0%, var(--bg) 100%);
-      font-family: "IBM Plex Sans", "Aptos", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+        radial-gradient(circle at 12% 10%, rgba(200,255,116,.18), transparent 30%),
+        radial-gradient(circle at 84% 16%, rgba(103,232,195,.18), transparent 28%),
+        linear-gradient(135deg, #050b0a 0%, #071615 44%, #10241f 100%);
+      font-family: "Space Grotesk", "IBM Plex Sans", "Aptos", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    }
+    body:before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: radial-gradient(circle at 52% 34%, black, transparent 72%);
     }
     button, input, select, textarea { font: inherit; }
-    button { border: 0; border-radius: 10px; padding: 10px 13px; background: var(--teal); color: white; font-weight: 850; cursor: pointer; }
-    button.secondary { background: #dfece7; color: var(--teal-2); }
-    button.ghost { background: transparent; color: var(--teal-2); border: 1px solid var(--line); }
-    button.danger { background: #f3ded8; color: var(--red); }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; color: var(--ink); background: white; }
-    input[type="file"] { border-style: dashed; background: #f4faf4; padding: 14px; }
-    textarea { min-height: 72px; resize: vertical; }
-    label { display: block; margin: 10px 0 6px; font-weight: 800; font-size: 12px; color: #314540; }
+    button { border: 0; border-radius: 999px; padding: 10px 15px; background: var(--lime); color: #10231f; font-weight: 900; cursor: pointer; box-shadow: 0 12px 28px rgba(200,255,116,.16); }
+    button.secondary { background: rgba(255,255,255,.1); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+    button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+    button.danger { background: rgba(255,111,97,.16); color: #ffd6d0; border: 1px solid rgba(255,111,97,.28); box-shadow: none; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    input, select, textarea { width: 100%; border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 11px 12px; color: var(--ink); background: rgba(3, 12, 11, .58); outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--lime); box-shadow: 0 0 0 3px rgba(200,255,116,.12); }
+    input[type="file"] { border-style: dashed; background: rgba(200,255,116,.06); padding: 15px; }
+    textarea { min-height: 80px; resize: vertical; }
+    label { display: block; margin: 10px 0 6px; font-weight: 850; font-size: 12px; color: #c6d8ce; }
     h1, h2, h3, p { margin-top: 0; }
-    h1 { margin-bottom: 3px; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.04em; line-height: 1; }
-    h2 { margin-bottom: 12px; font-size: 17px; letter-spacing: -.015em; }
-    h3 { margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    h1 { margin-bottom: 4px; font-size: clamp(32px, 5vw, 68px); letter-spacing: -.07em; line-height: .9; }
+    h2 { margin-bottom: 12px; font-size: 16px; letter-spacing: -.015em; }
+    h3 { margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
     p { color: var(--muted); line-height: 1.5; }
-    .shell { width: min(1440px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 34px; }
-    .topbar { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; margin-bottom: 14px; }
-    .brand { display: flex; gap: 12px; align-items: center; }
-    .mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #fafff6; background: linear-gradient(135deg, var(--teal-2), var(--teal)); font-weight: 950; box-shadow: 0 14px 28px rgba(7,59,58,.18); }
+    .shell { width: min(1560px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 34px; position: relative; }
+    .topbar { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start; margin-bottom: 16px; }
+    .brand { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; }
+    .mark { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 18px; color: #10231f; background: linear-gradient(135deg, var(--lime), var(--mint)); font-weight: 950; box-shadow: 0 18px 45px rgba(103,232,195,.18); }
     .subtitle { margin: 0; font-size: 13px; color: var(--muted); }
-    .command { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .kicker { color: var(--lime); text-transform: uppercase; letter-spacing: .18em; font-size: 11px; font-weight: 950; margin-bottom: 8px; }
+    .command { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; margin-top: 14px; }
     .top-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-    .pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 7px 10px; border: 1px solid rgba(13,91,85,.12); background: rgba(251,253,248,.78); color: var(--teal-2); font-size: 12px; font-weight: 850; }
-    .pill.hot { border-color: rgba(184,66,53,.25); color: var(--red); background: #fbebe6; }
-    .pill.lime { background: rgba(185,231,105,.22); }
-    .panel { background: rgba(251,253,248,.94); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 18px 50px var(--shadow); }
+    .pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 7px 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: #e9f5e6; font-size: 12px; font-weight: 850; backdrop-filter: blur(16px); }
+    .pill.hot { border-color: rgba(255,111,97,.32); color: #ffd6d0; background: rgba(255,111,97,.12); }
+    .pill.lime { color: #10231f; background: var(--lime); border-color: transparent; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 24px 80px var(--shadow); backdrop-filter: blur(20px); overflow: hidden; }
+    .panel.light { background: var(--panel-2); color: var(--ink-dark); }
+    .panel.light p, .panel.light .subtitle, .panel.light .label { color: #617067; }
     .panel-body { padding: 18px; }
-    .lab-grid { display: grid; grid-template-columns: 270px minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
-    .left-rail, .right-rail { display: grid; gap: 14px; }
-    .main-stage { display: grid; gap: 14px; }
-    .new-run { display: none; margin-bottom: 14px; }
-    .new-run.open { display: block; }
+    .lab-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr) 380px; gap: 16px; align-items: stretch; }
+    .left-rail, .right-rail { display: grid; gap: 16px; align-content: start; }
+    .main-stage { display: grid; gap: 16px; }
+    .new-run { display: none; margin-bottom: 16px; border-color: rgba(200,255,116,.32); }
+    .new-run.open { display: block; animation: slideIn .22s ease-out; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
     .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
     .wide { grid-column: span 2; }
     .full { grid-column: 1 / -1; }
-    .message { min-height: 22px; margin-top: 10px; font-weight: 850; color: var(--teal); }
-    .message.error { color: var(--red); }
+    .message { min-height: 22px; margin-top: 10px; font-weight: 850; color: var(--mint); }
+    .message.error { color: #ffb0a8; }
     .filter-row { display: flex; flex-wrap: wrap; gap: 7px; }
-    .filter-chip, .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #f5faf6; color: var(--teal-2); border-radius: 999px; padding: 7px 9px; font-size: 12px; font-weight: 850; }
-    .filter-chip.active { background: var(--teal-2); color: #f8fff5; }
+    .filter-chip, .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.07); color: #eff9ec; border-radius: 999px; padding: 7px 9px; font-size: 12px; font-weight: 850; }
+    .filter-chip.active { background: var(--lime); color: #10231f; border-color: transparent; }
     .metric-stack { display: grid; gap: 9px; }
-    .metric { padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg, #ffffff, #f7fbf7); }
-    .metric strong { display: block; font-size: 23px; line-height: 1; }
+    .metric { padding: 13px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.06); }
+    .metric strong { display: block; font-size: 30px; line-height: 1; }
     .metric span { color: var(--muted); font-size: 12px; font-weight: 750; }
     .severity.high strong { color: var(--red); }
     .severity.medium strong { color: var(--amber); }
-    .severity.low strong { color: var(--teal); }
-    .map-panel { min-height: 545px; position: relative; overflow: hidden; background: linear-gradient(145deg, #e3eee8 0%, #f7fbf5 100%); }
-    .map-head { position: relative; z-index: 4; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px; }
-    .map-title { max-width: 520px; }
-    .map-title h2 { font-size: 24px; margin: 0 0 4px; letter-spacing: -.035em; }
-    .map-title p { margin: 0; font-size: 13px; }
-    .gate-box { min-width: 190px; padding: 11px; border-radius: 14px; border: 1px solid rgba(184,66,53,.22); background: rgba(255,248,245,.92); }
-    .gate-box strong { display: block; color: var(--red); }
-    .map-canvas { position: absolute; inset: 0; }
-    .map-canvas:before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(49,95,118,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(49,95,118,.1) 1px, transparent 1px); background-size: 74px 74px; mask-image: linear-gradient(to bottom, transparent, black 10%, black 92%, transparent); }
-    .water { position: absolute; inset: 90px 42px 42px auto; width: 32%; border-radius: 48% 44% 42% 60%; background: rgba(49,95,118,.1); transform: rotate(-9deg); }
-    .borough { position: absolute; left: 24%; top: 23%; width: 270px; height: 250px; border: 1px solid rgba(13,91,85,.18); background: rgba(13,91,85,.06); border-radius: 55% 45% 50% 42%; transform: rotate(12deg); }
-    .street { position: absolute; height: 3px; border-radius: 999px; background: rgba(13,91,85,.62); transform-origin: left center; }
-    .s1 { left: 18%; top: 46%; width: 410px; transform: rotate(-17deg); } .s2 { left: 22%; top: 54%; width: 360px; transform: rotate(-17deg); }
-    .s3 { left: 26%; top: 62%; width: 320px; transform: rotate(-17deg); } .s4 { left: 28%; top: 34%; width: 235px; transform: rotate(76deg); }
-    .s5 { left: 37%; top: 28%; width: 290px; transform: rotate(79deg); } .s6 { left: 15%; top: 69%; width: 260px; transform: rotate(13deg); }
-    .cluster-dot, .outlier-dot { position: absolute; border-radius: 50%; }
-    .cluster-dot { width: 8px; height: 8px; background: var(--teal); box-shadow: 0 0 0 4px rgba(13,91,85,.1); }
-    .d1 { left: 34%; top: 45%; } .d2 { left: 39%; top: 49%; } .d3 { left: 45%; top: 43%; } .d4 { left: 48%; top: 57%; } .d5 { left: 30%; top: 61%; } .d6 { left: 52%; top: 51%; }
-    .outlier-dot { right: 17%; top: 20%; width: 16px; height: 16px; background: var(--red); box-shadow: 0 0 0 9px rgba(184,66,53,.16), 0 0 0 20px rgba(184,66,53,.07); }
-    .callout { position: absolute; right: 7%; top: 27%; z-index: 3; max-width: 250px; padding: 12px 13px; border-radius: 14px; border: 1px solid rgba(184,66,53,.22); background: rgba(255,253,248,.94); color: var(--red); font-size: 12px; font-weight: 850; }
-    .map-empty { position: absolute; z-index: 3; left: 18px; right: 18px; bottom: 18px; padding: 13px; border: 1px dashed rgba(13,91,85,.25); border-radius: 14px; background: rgba(251,253,248,.86); color: var(--muted); }
-    .evidence-strip { position: relative; z-index: 3; margin: 340px 18px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .severity.low strong { color: var(--mint); }
+    .map-panel { min-height: 670px; position: relative; overflow: hidden; border-color: rgba(103,232,195,.24); background: radial-gradient(circle at 45% 38%, rgba(103,232,195,.13), transparent 32%), linear-gradient(145deg, rgba(4,12,11,.98), rgba(12,31,29,.94)); }
+    .map-head { position: relative; z-index: 5; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; padding: 22px; }
+    .map-title h2 { font-size: clamp(28px, 4vw, 48px); margin: 0 0 6px; letter-spacing: -.055em; line-height: .96; }
+    .map-title p { margin: 0; max-width: 620px; }
+    .gate-box { min-width: 210px; padding: 14px; border-radius: 18px; border: 1px solid rgba(255,189,102,.34); background: rgba(255,189,102,.1); }
+    .gate-box strong { display: block; color: var(--amber); }
+    .map-canvas { position: absolute; inset: 0; overflow: hidden; }
+    .map-canvas:before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(200,255,116,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(200,255,116,.07) 1px, transparent 1px); background-size: 58px 58px; mask-image: radial-gradient(circle at 50% 52%, black 0%, transparent 74%); }
+    .map-canvas:after { content: ""; position: absolute; left: 17%; top: 20%; width: 560px; height: 560px; border-radius: 50%; border: 1px solid rgba(103,232,195,.16); box-shadow: 0 0 0 80px rgba(103,232,195,.025), 0 0 0 170px rgba(103,232,195,.018); }
+    .water { position: absolute; right: 7%; top: 16%; width: 35%; height: 58%; border-radius: 58% 42% 46% 62%; background: linear-gradient(135deg, rgba(119,183,255,.18), rgba(119,183,255,.04)); transform: rotate(-12deg); filter: blur(.2px); }
+    .borough { position: absolute; left: 28%; top: 24%; width: 330px; height: 315px; border: 1px solid rgba(200,255,116,.22); background: rgba(200,255,116,.045); border-radius: 56% 44% 52% 40%; transform: rotate(13deg); box-shadow: inset 0 0 60px rgba(200,255,116,.04); }
+    .street { position: absolute; height: 4px; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(200,255,116,.92), rgba(103,232,195,.65), transparent); transform-origin: left center; box-shadow: 0 0 18px rgba(200,255,116,.18); }
+    .s1 { left: 17%; top: 45%; width: 560px; transform: rotate(-17deg); } .s2 { left: 21%; top: 54%; width: 520px; transform: rotate(-17deg); }
+    .s3 { left: 25%; top: 63%; width: 440px; transform: rotate(-17deg); } .s4 { left: 31%; top: 31%; width: 350px; transform: rotate(76deg); }
+    .s5 { left: 43%; top: 25%; width: 400px; transform: rotate(79deg); } .s6 { left: 15%; top: 71%; width: 360px; transform: rotate(13deg); }
+    .cluster-dot, .outlier-dot { position: absolute; border-radius: 50%; z-index: 3; }
+    .cluster-dot { width: 10px; height: 10px; background: var(--lime); box-shadow: 0 0 0 6px rgba(200,255,116,.13), 0 0 24px rgba(200,255,116,.34); }
+    .d1 { left: 34%; top: 44%; } .d2 { left: 39%; top: 49%; } .d3 { left: 47%; top: 43%; } .d4 { left: 50%; top: 57%; } .d5 { left: 30%; top: 62%; } .d6 { left: 55%; top: 51%; }
+    .outlier-dot { right: 15%; top: 19%; width: 18px; height: 18px; background: var(--red); box-shadow: 0 0 0 10px rgba(255,111,97,.18), 0 0 0 24px rgba(255,111,97,.08), 0 0 42px rgba(255,111,97,.5); }
+    .callout { position: absolute; right: 6%; top: 26%; z-index: 4; max-width: 260px; padding: 13px 14px; border-radius: 18px; border: 1px solid rgba(255,111,97,.35); background: rgba(35, 12, 11, .82); color: #ffd6d0; font-size: 12px; font-weight: 900; box-shadow: 0 16px 42px rgba(0,0,0,.22); }
+    .map-empty { position: absolute; z-index: 4; left: 22px; right: 22px; bottom: 22px; padding: 14px; border: 1px dashed rgba(200,255,116,.28); border-radius: 18px; background: rgba(4,12,11,.68); color: #d6e6d6; }
+    .evidence-strip { position: relative; z-index: 5; margin: 465px 22px 0; display: flex; flex-wrap: wrap; gap: 8px; }
     .score-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
-    .score-ring { width: 118px; height: 118px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--amber) 0deg 256deg, #e4eee8 256deg); }
-    .score-ring span { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: var(--surface); font-size: 28px; font-weight: 950; color: var(--teal-2); }
-    .status-grid { display: grid; gap: 7px; margin-top: 12px; }
+    .score-ring { width: 126px; height: 126px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--lime) 0deg 256deg, rgba(255,255,255,.1) 256deg); box-shadow: 0 0 36px rgba(200,255,116,.16); }
+    .score-ring span { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: #081513; font-size: 30px; font-weight: 950; color: var(--ink); }
+    .status-grid { display: grid; gap: 7px; margin-top: 14px; }
     .status { display: grid; grid-template-columns: 110px 1fr; gap: 8px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 8px; }
     .label { color: var(--muted); font-weight: 800; }
     .value { font-weight: 850; overflow-wrap: anywhere; }
     .package-list, .recent { display: grid; gap: 8px; }
-    .package-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px; border-bottom: 1px solid var(--line); }
-    .package-row:last-child { border-bottom: 0; }
-    .package-row a { color: var(--teal-2); font-weight: 900; text-decoration: none; }
+    .package-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 11px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.055); }
+    .package-row a { color: var(--lime); font-weight: 950; text-decoration: none; }
     .status-note { font-size: 12px; font-weight: 850; color: var(--muted); }
-    .status-note.ready { color: var(--teal); }
+    .status-note.ready { color: var(--mint); }
     .review-box { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
     .review-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .recent { max-height: 220px; overflow: auto; }
-    .recent button { padding: 7px 9px; }
+    .recent { max-height: 260px; overflow: auto; }
+    .recent button { padding: 7px 10px; }
     details { margin-top: 12px; }
-    summary { cursor: pointer; color: var(--teal-2); font-weight: 900; }
-    .secondary-links a { display: inline-block; margin: 6px 7px 0 0; color: var(--teal-2); font-weight: 850; text-decoration: none; }
+    summary { cursor: pointer; color: var(--lime); font-weight: 950; }
+    .secondary-links a { display: inline-block; margin: 6px 7px 0 0; color: var(--mint); font-weight: 850; text-decoration: none; }
     .triage { overflow: hidden; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; color: var(--muted); background: #eef6f1; padding: 10px; border-bottom: 1px solid var(--line); }
-    td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    .severity-label { font-weight: 950; color: var(--teal-2); }
+    th { text-align: left; color: #c9d8ce; background: rgba(255,255,255,.06); padding: 10px; border-bottom: 1px solid var(--line); }
+    td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: #eef8ee; }
+    .severity-label { font-weight: 950; color: var(--mint); }
     .severity-label.high { color: var(--red); } .severity-label.medium { color: var(--amber); }
     .timeline { display: grid; gap: 8px; }
-    .timeline-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
-    .download-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .download-card { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
-    .raw { display: none; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; padding: 12px; background: #10231f; color: #ecf5ec; border-radius: 10px; }
-    @media (max-width: 1180px) { .lab-grid { grid-template-columns: 1fr; } .left-rail, .right-rail { grid-template-columns: repeat(2, 1fr); } .map-panel { min-height: 500px; } }
-    @media (max-width: 760px) { .shell { width: min(100% - 18px, 1440px); } .topbar { grid-template-columns: 1fr; } .command, .top-actions { justify-content: flex-start; } .left-rail, .right-rail, .form-grid, .download-row { grid-template-columns: 1fr; } .wide { grid-column: auto; } .map-head, .score-card { grid-template-columns: 1fr; } .gate-box { min-width: 0; } .evidence-strip { margin-top: 315px; } }
+    .timeline-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .download-row { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .download-card { border: 1px solid var(--line-strong); border-radius: 18px; padding: 13px; background: linear-gradient(135deg, rgba(200,255,116,.13), rgba(103,232,195,.06)); }
+    .raw { display: none; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; padding: 12px; background: #030807; color: #ecf5ec; border-radius: 10px; }
+    .mobile-note { display: none; }
+    @media (max-width: 1220px) { .lab-grid { grid-template-columns: 1fr; } .left-rail, .right-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } .map-panel { min-height: 620px; } }
+    @media (max-width: 760px) { .shell { width: min(100% - 18px, 1440px); padding-top: 12px; } .topbar, .brand, .form-grid, .left-rail, .right-rail, .download-row { grid-template-columns: 1fr; } .top-actions, .command { justify-content: flex-start; } .wide { grid-column: auto; } .map-head, .score-card { grid-template-columns: 1fr; } .gate-box { min-width: 0; } .map-panel { min-height: 700px; } .evidence-strip { margin-top: 500px; } h1 { font-size: 42px; } }
   </style>
 </head>
 <body>
@@ -432,14 +452,16 @@ def _landing_page_html() -> str:
       <div class="brand">
         <div class="mark">GQ</div>
         <div>
+          <div class="kicker">Approved Design 3 · Evidence Package Console</div>
           <h1>Spatial Evidence Lab</h1>
-          <p class="subtitle">GeoQA Data Readiness Audit · Evidence Package Console for upload, anomaly review, and customer handoff.</p>
+          <p class="subtitle">GeoQA Data Readiness Audit for upload, spatial anomaly review, readiness gating, and customer handoff.</p>
+          <div class="command">
+            <span class="pill" id="topRunStatus">No active run</span>
+            <span class="pill hot">Pipeline gate: 85</span>
+            <span class="pill lime">Map-first QA evidence</span>
+            <span class="pill">Worker async</span>
+          </div>
         </div>
-      </div>
-      <div class="command">
-        <span class="pill" id="topRunStatus">No active run</span>
-        <span class="pill hot">Gate threshold 85</span>
-        <span class="pill lime">Worker async</span>
       </div>
       <div class="top-actions">
         <span class="pill">API __API_STATUS__</span>
@@ -452,7 +474,7 @@ def _landing_page_html() -> str:
     <section id="newRunPanel" class="panel new-run">
       <div class="panel-body">
         <h2>New run</h2>
-        <p class="subtitle">Upload GeoJSON, GeoPackage, or zipped shapefile. Max upload: __MAX_UPLOAD__ MB. Upload mode: __UPLOAD_MODE__.</p>
+        <p class="subtitle">Compact intake drawer. Upload GeoJSON, GeoPackage, or zipped shapefile. Max upload: __MAX_UPLOAD__ MB. Upload mode: __UPLOAD_MODE__.</p>
         <div class="form-grid">
           <div><label for="apiKey">API key, if configured</label><input id="apiKey" type="password" placeholder="Paste x-api-key for protected deployments" /></div>
           <div class="wide"><label for="dataset">Dataset file</label><input id="dataset" type="file" accept=".geojson,.gpkg,.zip,application/zip" /></div>
@@ -473,8 +495,8 @@ def _landing_page_html() -> str:
     <section class="lab-grid">
       <aside class="left-rail">
         <section class="panel"><div class="panel-body">
-          <h2>Issue filters</h2>
-          <div class="filter-row"><span class="filter-chip active">All findings</span><span class="filter-chip">High</span><span class="filter-chip">Geometry</span><span class="filter-chip">Schema</span><span class="filter-chip">Anomalies</span></div>
+          <h2>Mission controls</h2>
+          <div class="filter-row"><span class="filter-chip active">All findings</span><span class="filter-chip">High risk</span><span class="filter-chip">Geometry</span><span class="filter-chip">Schema</span><span class="filter-chip">Spatial anomalies</span></div>
           <div class="metric-stack" style="margin-top: 12px;"><div class="metric severity high"><strong id="issueHigh">-</strong><span>High findings</span></div><div class="metric severity medium"><strong id="issueMedium">-</strong><span>Medium findings</span></div><div class="metric severity low"><strong id="issueLow">-</strong><span>Low findings</span></div></div>
         </div></section>
         <section class="panel"><div class="panel-body">
@@ -486,8 +508,8 @@ def _landing_page_html() -> str:
       <section class="main-stage">
         <section class="panel map-panel" aria-label="Spatial evidence">
           <div class="map-head">
-            <div class="map-title"><h2>Spatial evidence</h2><p>Map-first evidence preview for geometry type, CRS, feature count, extent, and spatial anomaly signals.</p></div>
-            <div class="gate-box"><strong id="gateLabel">Pipeline gate pending</strong><span class="status-note">Use `--fail-below` in CI or ETL gates.</span></div>
+            <div class="map-title"><h2>Spatial evidence</h2><p>The approved Design 3 view puts the map/anomaly evidence first: geometry type, CRS, feature count, cluster context, and outlier signals before the paperwork.</p></div>
+            <div class="gate-box"><strong id="gateLabel">Pipeline gate pending</strong><span class="status-note">Use `--fail-below` before ETL or ingestion.</span></div>
           </div>
           <div class="map-canvas" id="mapPanel"><div class="water"></div><div class="borough"></div><div class="street s1"></div><div class="street s2"></div><div class="street s3"></div><div class="street s4"></div><div class="street s5"></div><div class="street s6"></div><div class="cluster-dot d1"></div><div class="cluster-dot d2"></div><div class="cluster-dot d3"></div><div class="cluster-dot d4"></div><div class="cluster-dot d5"></div><div class="cluster-dot d6"></div><div class="outlier-dot"></div><div class="callout" id="anomalyCallout">Evidence preview appears after QA completes.</div><div class="map-empty" id="mapEmpty">Spatial evidence uses GeoQA summary metadata first: geometry type, CRS, feature count, and spatial anomaly count.</div></div>
           <div class="evidence-strip" id="evidenceChips"><span class="chip">No evidence loaded</span></div>
@@ -502,12 +524,12 @@ def _landing_page_html() -> str:
           <div class="score-card"><div class="score-ring"><span id="readinessScore">--</span></div><div><strong id="readinessBand">Waiting for run</strong><p id="decisionText">Upload a dataset or open a recent run to review readiness evidence.</p></div></div>
           <div class="status-grid"><div class="status"><span class="label">Run ID</span><span id="runId" class="value">Not started</span></div><div class="status"><span class="label">Status</span><span id="runStatus" class="value">Waiting</span></div><div class="status"><span class="label">Current run</span><span id="currentFilename" class="value">-</span></div></div>
         </div></section>
-        <section class="panel"><div class="panel-body"><h2>Primary downloads</h2><div id="primaryArtifacts" class="package-list"></div><div class="download-row" style="margin-top: 12px;"><div class="download-card"><strong>Customer report PDF</strong><p class="subtitle">Buyer-ready summary.</p></div><div class="download-card"><strong>Issues CSV</strong><p class="subtitle">Record-level evidence.</p></div><div class="download-card"><strong>Handoff bundle</strong><p class="subtitle">Package ZIP.</p></div></div><details><summary>Secondary artifacts</summary><div id="secondaryArtifacts" class="secondary-links"></div></details></div></section>
-        <section class="panel"><div class="panel-body"><h2>Reviewer approval</h2><div class="review-box"><label for="reviewerName">Reviewer name</label><input id="reviewerName" type="text" placeholder="QA Reviewer" /><label for="reviewNotes">Review notes</label><textarea id="reviewNotes" placeholder="Approval or rejection notes"></textarea><div class="review-actions"><button id="approvePackage" disabled>Approve package</button><button id="rejectPackage" class="danger" disabled>Reject</button></div><p id="reviewStatus" class="subtitle">Review is available when an AI draft exists for a completed run.</p></div></div></section>
-        <section class="panel"><div class="panel-body" id="reportPreview"><h2>Customer report preview</h2><p>Open or complete a run to preview the customer-facing audit narrative.</p></div></section>
+        <section class="panel"><div class="panel-body"><h2>Revenue package</h2><p class="subtitle">Primary customer deliverables come first.</p><div id="primaryArtifacts" class="package-list"></div><div class="download-row" style="margin-top: 12px;"><div class="download-card"><strong>Customer report PDF</strong><p class="subtitle">Buyer-ready summary.</p></div><div class="download-card"><strong>Issues CSV</strong><p class="subtitle">Record-level evidence.</p></div><div class="download-card"><strong>Handoff bundle</strong><p class="subtitle">Package ZIP.</p></div></div><details><summary>Secondary artifacts</summary><div id="secondaryArtifacts" class="secondary-links"></div></details></div></section>
+        <section class="panel"><div class="panel-body"><h2>Reviewer approval</h2><div class="review-box"><label for="reviewerName">Reviewer name</label><input id="reviewerName" type="text" placeholder="QA Reviewer" /><label for="reviewNotes">Review notes</label><textarea id="reviewNotes" placeholder="Approval, rejection, or customer handoff notes"></textarea><div class="review-actions"><button id="approvePackage">Approve package</button><button id="rejectPackage" class="danger">Reject</button></div><p id="reviewStatus" class="subtitle">Review gate is available after a reviewable draft exists.</p></div></div></section>
+        <section class="panel light"><div class="panel-body" id="reportPreview"><h2>Customer report preview</h2><p>Run GeoQA to generate the buyer-facing readiness narrative, geometry profile, spatial anomaly summary, and recommended next actions.</p></div></section>
+        <pre id="raw" class="raw"></pre>
       </aside>
     </section>
-    <pre id="raw" class="raw">{}</pre>
   </main>
   <script>
     let currentRunId = null;
