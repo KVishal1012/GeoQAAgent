@@ -295,7 +295,9 @@ def _landing_page_html() -> str:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GeoQA Data Readiness Audit</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ4HLULoYttRtlHn2YEuyfF3N4hG0w=" crossorigin="" />
   <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <style>
     :root {
       --bg: #f6f9ff;
@@ -395,21 +397,16 @@ def _landing_page_html() -> str:
     .map-title p { margin: 0; max-width: 620px; }
     .gate-box { min-width: 210px; padding: 14px; border-radius: 18px; border: 1px solid rgba(255,189,102,.34); background: rgba(255,189,102,.1); }
     .gate-box strong { display: block; color: var(--amber); }
-    .map-canvas { position: absolute; inset: 0; overflow: hidden; }
-    .map-canvas:before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(11,47,102,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(11,47,102,.07) 1px, transparent 1px); background-size: 58px 58px; mask-image: radial-gradient(circle at 50% 52%, black 0%, transparent 74%); }
-    .map-canvas:after { content: ""; position: absolute; left: 17%; top: 20%; width: 560px; height: 560px; border-radius: 50%; border: 1px solid rgba(11,47,102,.16); box-shadow: 0 0 0 80px rgba(11,47,102,.025), 0 0 0 170px rgba(11,47,102,.018); }
-    .water { position: absolute; right: 7%; top: 16%; width: 35%; height: 58%; border-radius: 58% 42% 46% 62%; background: linear-gradient(135deg, rgba(14,79,159,.16), rgba(14,79,159,.04)); transform: rotate(-12deg); filter: blur(.2px); }
-    .borough { position: absolute; left: 28%; top: 24%; width: 330px; height: 315px; border: 1px solid rgba(11,47,102,.20); background: rgba(11,47,102,.045); border-radius: 56% 44% 52% 40%; transform: rotate(13deg); box-shadow: inset 0 0 60px rgba(11,47,102,.04); }
-    .street { position: absolute; height: 4px; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(11,47,102,.88), rgba(29,95,174,.62), transparent); transform-origin: left center; box-shadow: 0 0 18px rgba(11,47,102,.14); }
-    .s1 { left: 17%; top: 45%; width: 560px; transform: rotate(-17deg); } .s2 { left: 21%; top: 54%; width: 520px; transform: rotate(-17deg); }
-    .s3 { left: 25%; top: 63%; width: 440px; transform: rotate(-17deg); } .s4 { left: 31%; top: 31%; width: 350px; transform: rotate(76deg); }
-    .s5 { left: 43%; top: 25%; width: 400px; transform: rotate(79deg); } .s6 { left: 15%; top: 71%; width: 360px; transform: rotate(13deg); }
-    .cluster-dot, .outlier-dot { position: absolute; border-radius: 50%; z-index: 3; }
-    .cluster-dot { width: 10px; height: 10px; background: var(--lime); box-shadow: 0 0 0 6px rgba(11,47,102,.13), 0 0 24px rgba(11,47,102,.28); }
-    .d1 { left: 34%; top: 44%; } .d2 { left: 39%; top: 49%; } .d3 { left: 47%; top: 43%; } .d4 { left: 50%; top: 57%; } .d5 { left: 30%; top: 62%; } .d6 { left: 55%; top: 51%; }
-    .outlier-dot { right: 15%; top: 19%; width: 18px; height: 18px; background: var(--red); box-shadow: 0 0 0 10px rgba(255,111,97,.18), 0 0 0 24px rgba(255,111,97,.08), 0 0 42px rgba(255,111,97,.5); }
+    .map-canvas { position: absolute; inset: 0; overflow: hidden; background: #dfe8f4; }
+    .geoqa-basemap { position: absolute; inset: 0; z-index: 1; }
+    .geoqa-basemap .leaflet-control-attribution { font-size: 10px; color: #304a6f; }
+    .geoqa-basemap .leaflet-tile-pane { filter: saturate(.82) contrast(1.02) brightness(1.03); }
+    .geoqa-map-shade { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.76), rgba(255,255,255,.10) 28%, rgba(255,255,255,.10) 68%, rgba(255,255,255,.80)); }
+    .map-marker { position: absolute; border-radius: 50%; z-index: 3; pointer-events: none; }
+    .map-marker.cluster { width: 12px; height: 12px; left: 45%; top: 51%; background: var(--lime); box-shadow: 0 0 0 7px rgba(11,47,102,.16), 0 0 24px rgba(11,47,102,.28); }
+    .map-marker.outlier { right: 18%; top: 24%; width: 18px; height: 18px; background: var(--red); box-shadow: 0 0 0 10px rgba(178,59,59,.16), 0 0 0 24px rgba(178,59,59,.08), 0 0 42px rgba(178,59,59,.34); }
     .callout { position: absolute; right: 6%; top: 26%; z-index: 4; max-width: 260px; padding: 13px 14px; border-radius: 18px; border: 1px solid rgba(178,59,59,.28); background: #fff5f5; color: var(--red); font-size: 12px; font-weight: 900; box-shadow: 0 16px 42px rgba(11,31,58,.12); }
-    .map-empty { position: absolute; z-index: 4; left: 22px; right: 22px; bottom: 22px; padding: 14px; border: 1px dashed rgba(11,47,102,.24); border-radius: 18px; background: rgba(255,255,255,.86); color: var(--muted); }
+    .map-empty { position: absolute; z-index: 4; left: 22px; right: 22px; bottom: 22px; padding: 14px; border: 1px dashed rgba(11,47,102,.24); border-radius: 18px; background: rgba(255,255,255,.90); color: var(--muted); }
     .evidence-strip { position: relative; z-index: 5; margin: 465px 22px 0; display: flex; flex-wrap: wrap; gap: 8px; }
     .score-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
     .score-ring { width: 126px; height: 126px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--lime) 0deg 256deg, rgba(255,255,255,.1) 256deg); box-shadow: 0 0 36px rgba(200,255,116,.16); }
@@ -511,7 +508,7 @@ def _landing_page_html() -> str:
             <div class="map-title"><h2>Spatial evidence</h2><p>The approved Design 3 view puts the map/anomaly evidence first: geometry type, CRS, feature count, cluster context, and outlier signals before the paperwork.</p></div>
             <div class="gate-box"><strong id="gateLabel">Pipeline gate pending</strong><span class="status-note">Use `--fail-below` before ETL or ingestion.</span></div>
           </div>
-          <div class="map-canvas" id="mapPanel"><div class="water"></div><div class="borough"></div><div class="street s1"></div><div class="street s2"></div><div class="street s3"></div><div class="street s4"></div><div class="street s5"></div><div class="street s6"></div><div class="cluster-dot d1"></div><div class="cluster-dot d2"></div><div class="cluster-dot d3"></div><div class="cluster-dot d4"></div><div class="cluster-dot d5"></div><div class="cluster-dot d6"></div><div class="outlier-dot"></div><div class="callout" id="anomalyCallout">Evidence preview appears after QA completes.</div><div class="map-empty" id="mapEmpty">Spatial evidence uses GeoQA summary metadata first: geometry type, CRS, feature count, and spatial anomaly count.</div></div>
+          <div class="map-canvas" id="mapPanel"><div id="geoqaMap" class="geoqa-basemap" aria-label="Interactive basemap"></div><div class="geoqa-map-shade"></div><div class="map-marker cluster"></div><div class="map-marker outlier"></div><div class="callout" id="anomalyCallout">Evidence preview appears after QA completes.</div><div class="map-empty" id="mapEmpty">Spatial evidence uses an actual basemap. GeoQA fits to dataset bounds when QA metadata includes total bounds.</div></div>
           <div class="evidence-strip" id="evidenceChips"><span class="chip">No evidence loaded</span></div>
         </section>
         <section class="panel triage"><div class="panel-body"><h2>Issue triage</h2><table><thead><tr><th>Severity</th><th>Finding</th><th>Affected record/column</th><th>Why it matters</th><th>Suggested action</th></tr></thead><tbody id="triageBody"><tr><td colspan="5">Issue triage appears after QA completes. Use Issues CSV for record-level detail.</td></tr></tbody></table></div></section>
@@ -536,6 +533,8 @@ def _landing_page_html() -> str:
     let currentRunPayload = null;
     let currentArtifacts = {};
     let pollTimer = null;
+    let geoqaMap = null;
+    let geoqaBoundsLayer = null;
     const $ = (id) => document.getElementById(id);
     const primaryArtifactOrder = ["customer_report_pdf", "issues_csv", "handoff_bundle"];
     const secondaryArtifactOrder = ["qa_report", "summary", "run_record", "geometry_profile", "customer_report", "customer_intake", "review_status", "review_history", "agent_report_draft", "agent_report", "agent_report_json", "agent_session", "agent_trace", "report_consistency", "hallucination_check", "fix_plan", "fix_plan_json", "bundle_manifest"];
@@ -544,6 +543,37 @@ def _landing_page_html() -> str:
     function setMessage(text, isError = false) { $("message").textContent = text; $("message").className = "message" + (isError ? " error" : ""); }
     async function readJson(response) { const payload = await response.json(); if (!response.ok) { const error = payload.error || {}; throw new Error(error.message || "Request failed"); } return payload; }
     function titleCase(value) { return String(value || "").replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+    function initBasemap() {
+      if (geoqaMap || !window.L || !$('geoqaMap')) return;
+      geoqaMap = L.map('geoqaMap', { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView([39.5, -98.35], 4);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(geoqaMap);
+      setTimeout(() => geoqaMap.invalidateSize(), 80);
+    }
+    function boundsFromProfile(profile) {
+      const bounds = profile.total_bounds || profile.bounds || profile.extent;
+      if (!bounds) return null;
+      const minX = Number(bounds.min_x ?? bounds.minx ?? bounds.west);
+      const minY = Number(bounds.min_y ?? bounds.miny ?? bounds.south);
+      const maxX = Number(bounds.max_x ?? bounds.maxx ?? bounds.east);
+      const maxY = Number(bounds.max_y ?? bounds.maxy ?? bounds.north);
+      if (![minX, minY, maxX, maxY].every(Number.isFinite)) return null;
+      if (Math.abs(minX) > 180 || Math.abs(maxX) > 180 || Math.abs(minY) > 90 || Math.abs(maxY) > 90) return null;
+      return [[minY, minX], [maxY, maxX]];
+    }
+    function updateBasemap(profile) {
+      initBasemap();
+      if (!geoqaMap || !window.L) return;
+      const bounds = boundsFromProfile(profile || {});
+      if (geoqaBoundsLayer) { geoqaBoundsLayer.remove(); geoqaBoundsLayer = null; }
+      if (bounds) {
+        geoqaBoundsLayer = L.rectangle(bounds, { color: '#0b2f66', weight: 2, fillColor: '#1d5fae', fillOpacity: .08 }).addTo(geoqaMap);
+        geoqaMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 13 });
+      }
+      setTimeout(() => geoqaMap.invalidateSize(), 80);
+    }
     function renderPackageRows() {
       $("primaryArtifacts").innerHTML = primaryArtifactOrder.map((name) => {
         const artifact = currentArtifacts[name] || {};
@@ -567,7 +597,8 @@ def _landing_page_html() -> str:
       const anomalyCount = anomalies.count ?? 0;
       $("evidenceChips").innerHTML = [`<span class="chip">${geometry}</span>`, `<span class="chip">${crs}</span>`, `<span class="chip">${featureCount} features</span>`, `<span class="chip">${anomalyCount} spatial anomalies</span>`, `<span class="chip">SQL Server risk review</span>`].join("");
       $("anomalyCallout").textContent = payload.status === "completed" ? (anomalyCount ? `Spatial anomaly: ${anomalyCount} flagged` : "No strong spatial outliers detected") : "Evidence preview appears after QA completes.";
-      $("mapEmpty").textContent = payload.status === "completed" ? `Spatial evidence: ${geometry}, ${crs}.` : "Evidence preview appears after QA completes.";
+      $("mapEmpty").textContent = payload.status === "completed" ? `Spatial evidence: ${geometry}, ${crs}. Basemap fits to dataset bounds when coordinates are in EPSG:4326.` : "Evidence preview appears after QA completes.";
+      updateBasemap(profile);
     }
     function renderReportPreview(payload) {
       const band = titleCase(payload.readiness_band || "Pending");
@@ -683,7 +714,7 @@ def _landing_page_html() -> str:
         const run = await readJson(runResponse); currentRunId = run.run_id; currentArtifacts = {}; renderPackageRows(); $("refreshRun").disabled = false; $("newRunPanel").classList.remove("open"); renderRun(run); setMessage("Run queued. Worker will process it asynchronously."); await loadRecentRuns(); clearInterval(pollTimer); pollTimer = setInterval(refreshRun, 3000);
       } catch (error) { setMessage(error.message, true); } finally { $("submitRun").disabled = false; }
     });
-    renderPackageRows(); renderRun({}); loadRecentRuns();
+    initBasemap(); renderPackageRows(); renderRun({}); loadRecentRuns();
   </script>
 </body>
 </html>"""
