@@ -535,10 +535,11 @@ def _landing_page_html() -> str:
     let pollTimer = null;
     let geoqaMap = null;
     let geoqaBoundsLayer = null;
+    let geoqaPreviewLayer = null;
     const $ = (id) => document.getElementById(id);
     const primaryArtifactOrder = ["customer_report_pdf", "issues_csv", "handoff_bundle"];
-    const secondaryArtifactOrder = ["qa_report", "summary", "run_record", "geometry_profile", "customer_report", "customer_intake", "review_status", "review_history", "agent_report_draft", "agent_report", "agent_report_json", "agent_session", "agent_trace", "report_consistency", "hallucination_check", "fix_plan", "fix_plan_json", "bundle_manifest"];
-    const artifactLabels = { customer_report_pdf: "Customer report PDF", issues_csv: "Issues CSV", handoff_bundle: "Handoff bundle", qa_report: "QA report", summary: "Summary JSON", run_record: "Run record JSON", geometry_profile: "Geometry profile JSON", customer_report: "Customer report Markdown", customer_intake: "Customer intake JSON", review_status: "Review status", review_history: "Review history", agent_report_draft: "AI draft report", agent_report: "AI final report", agent_report_json: "AI report metadata", agent_session: "Agent session", agent_trace: "Agent trace", report_consistency: "Report consistency", hallucination_check: "Hallucination check", fix_plan: "Fix plan", fix_plan_json: "Fix plan JSON", bundle_manifest: "Bundle manifest" };
+    const secondaryArtifactOrder = ["qa_report", "summary", "run_record", "geometry_profile", "map_preview", "customer_report", "customer_intake", "review_status", "review_history", "agent_report_draft", "agent_report", "agent_report_json", "agent_session", "agent_trace", "report_consistency", "hallucination_check", "fix_plan", "fix_plan_json", "bundle_manifest"];
+    const artifactLabels = { customer_report_pdf: "Customer report PDF", issues_csv: "Issues CSV", handoff_bundle: "Handoff bundle", qa_report: "QA report", summary: "Summary JSON", run_record: "Run record JSON", geometry_profile: "Geometry profile JSON", map_preview: "Map preview GeoJSON", customer_report: "Customer report Markdown", customer_intake: "Customer intake JSON", review_status: "Review status", review_history: "Review history", agent_report_draft: "AI draft report", agent_report: "AI final report", agent_report_json: "AI report metadata", agent_session: "Agent session", agent_trace: "Agent trace", report_consistency: "Report consistency", hallucination_check: "Hallucination check", fix_plan: "Fix plan", fix_plan_json: "Fix plan JSON", bundle_manifest: "Bundle manifest" };
     function headers(json = false) { const value = $("apiKey").value.trim(); const output = {}; if (value) output["x-api-key"] = value; if (json) output["Content-Type"] = "application/json"; return output; }
     function setMessage(text, isError = false) { $("message").textContent = text; $("message").className = "message" + (isError ? " error" : ""); }
     async function readJson(response) { const payload = await response.json(); if (!response.ok) { const error = payload.error || {}; throw new Error(error.message || "Request failed"); } return payload; }
@@ -573,6 +574,43 @@ def _landing_page_html() -> str:
         geoqaMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 13 });
       }
       setTimeout(() => geoqaMap.invalidateSize(), 80);
+    }
+    function renderMapPreview(geojson) {
+      initBasemap();
+      if (!geoqaMap || !window.L || !geojson || !Array.isArray(geojson.features)) return;
+      if (geoqaPreviewLayer) { geoqaPreviewLayer.remove(); geoqaPreviewLayer = null; }
+      geoqaPreviewLayer = L.geoJSON(geojson, {
+        style: (feature) => {
+          const outlier = feature.properties && feature.properties.is_spatial_outlier;
+          return { color: outlier ? "#b23b3b" : "#0b2f66", weight: outlier ? 4 : 2, opacity: .9, fillColor: outlier ? "#b23b3b" : "#1d5fae", fillOpacity: outlier ? .22 : .10 };
+        },
+        pointToLayer: (feature, latlng) => {
+          const outlier = feature.properties && feature.properties.is_spatial_outlier;
+          return L.circleMarker(latlng, { radius: outlier ? 8 : 5, color: outlier ? "#b23b3b" : "#0b2f66", weight: 2, fillColor: outlier ? "#b23b3b" : "#1d5fae", fillOpacity: outlier ? .85 : .55 });
+        },
+        onEachFeature: (feature, layer) => {
+          const props = feature.properties || {};
+          layer.bindPopup(`<strong>${props.preview_role === "spatial_outlier" ? "Spatial outlier" : "Sample feature"}</strong><br>Feature: ${props.feature_id ?? "unknown"}<br>Geometry: ${props.geometry_type ?? "unknown"}`);
+        }
+      }).addTo(geoqaMap);
+      const count = geojson.features.length;
+      const meta = geojson.metadata || {};
+      if (count) {
+        geoqaMap.fitBounds(geoqaPreviewLayer.getBounds(), { padding: [34, 34], maxZoom: 14 });
+        $("mapEmpty").textContent = `${count} preview feature${count === 1 ? "" : "s"} drawn on the basemap${meta.sampled ? " (sampled for browser performance)" : ""}.`;
+      }
+      setTimeout(() => geoqaMap.invalidateSize(), 80);
+    }
+    async function loadMapPreviewArtifact() {
+      const artifact = currentArtifacts.map_preview || {};
+      if (!artifact.exists || !artifact.url) return;
+      try {
+        const response = await fetch(artifact.url, { headers: headers() });
+        if (!response.ok) return;
+        renderMapPreview(await response.json());
+      } catch (_) {
+        // The basemap and bounds fallback remain usable if preview fetch fails.
+      }
     }
     function renderPackageRows() {
       $("primaryArtifacts").innerHTML = primaryArtifactOrder.map((name) => {
@@ -655,7 +693,7 @@ def _landing_page_html() -> str:
     async function loadArtifacts(runId) {
       const response = await fetch(`/api/v1/runs/${runId}/artifacts`, { headers: headers() });
       if (!response.ok) { currentArtifacts = {}; renderPackageRows(); return; }
-      const payload = await response.json(); currentArtifacts = payload.artifacts || {}; renderPackageRows();
+      const payload = await response.json(); currentArtifacts = payload.artifacts || {}; renderPackageRows(); await loadMapPreviewArtifact();
     }
     async function loadRecentRuns() {
       const response = await fetch("/api/v1/runs?limit=5", { headers: headers() }); if (!response.ok) return;
@@ -734,6 +772,7 @@ def _artifact_manifest(output_dir: Path, run_id: str | None = None) -> dict[str,
         "run_record": output_dir / "run_record.json",
         "summary": output_dir / "summary.json",
         "geometry_profile": output_dir / "geometry_profile.json",
+        "map_preview": output_dir / "map_preview.geojson",
         "customer_report": output_dir / "customer_report.md",
         "customer_report_pdf": output_dir / "customer_report.pdf",
         "customer_intake": output_dir / "customer_intake.json",

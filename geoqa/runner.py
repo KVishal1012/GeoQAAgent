@@ -14,6 +14,7 @@ from geoqa.checks.schema_checks import run_schema_checks
 from geoqa.checks.sqlserver_checks import run_sqlserver_checks
 from geoqa.ingestion.loaders import load_dataset
 from geoqa.geometry.profile import build_geometry_profile
+from geoqa.geometry.map_preview import build_map_preview
 from geoqa.ingestion.validators import validate_input_file
 from geoqa.models import QAResult, RunRecord
 from geoqa.normalization.crs_normalizer import normalize_crs
@@ -93,6 +94,7 @@ def run_geoqa(
         run_record.status = "completed"
 
         spatial_outliers = [issue for issue in issues if issue.issue_code == "SPATIAL_OUTLIER"]
+        map_preview = build_map_preview(gdf, issues)
         summary = {
             "dataset": {
                 "filename": metadata["filename"],
@@ -103,6 +105,7 @@ def run_geoqa(
                 "geometry_profile": run_record.geometry_profile,
             },
             "customer_intake": run_record.customer_intake,
+            "map_preview": map_preview,
             "spatial_anomalies": {
                 "count": len(spatial_outliers),
                 "feature_ids": [issue.feature_id for issue in spatial_outliers[:20]],

@@ -96,6 +96,8 @@ def test_vercel_root_prioritizes_revenue_artifacts(monkeypatch, tmp_path):
     assert 'qa_report: "QA report"' in body
     assert 'summary: "Summary JSON"' in body
     assert 'geometry_profile: "Geometry profile JSON"' in body
+    assert 'map_preview: "Map preview GeoJSON"' in body
+    assert '"geometry_profile", "map_preview", "customer_report"' in body
 
 
 def test_vercel_root_contains_review_ui_contract(monkeypatch, tmp_path):
@@ -122,6 +124,10 @@ def test_vercel_root_uses_resumable_supabase_upload_for_large_files(monkeypatch,
     assert "upload/resumable" not in body  # endpoint comes from the upload-session API, not hardcoded UI state
     assert "x-signature" not in body
     assert "uploadLargeFileWithTus" in body
+    assert "leaflet@1.9.4" in body
+    assert "OpenStreetMap contributors" in body
+    assert "renderMapPreview" in body
+    assert "loadMapPreviewArtifact" in body
     assert "session.resumable_upload" in body
     assert "resumable_headers" in body
     assert "session.upload_url" in body

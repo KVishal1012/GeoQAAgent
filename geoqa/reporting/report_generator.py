@@ -26,6 +26,7 @@ def generate_artifacts(
         "run_record": str(output_dir / "run_record.json"),
         "summary": str(output_dir / "summary.json"),
         "geometry_profile": str(output_dir / "geometry_profile.json"),
+        "map_preview": str(output_dir / "map_preview.geojson"),
         "customer_intake": str(output_dir / "customer_intake.json"),
         "customer_report": str(output_dir / "customer_report.md"),
         "customer_report_pdf": str(output_dir / "customer_report.pdf"),
@@ -48,6 +49,12 @@ def generate_artifacts(
     geometry_profile_path = Path(artifacts["geometry_profile"])
     geometry_profile_path.write_text(
         json.dumps(qa_result.summary.get("dataset", {}).get("geometry_profile", {}), indent=2),
+        encoding="utf-8",
+    )
+
+    map_preview_path = Path(artifacts["map_preview"])
+    map_preview_path.write_text(
+        json.dumps(qa_result.summary.get("map_preview", {"type": "FeatureCollection", "features": []}), indent=2),
         encoding="utf-8",
     )
 

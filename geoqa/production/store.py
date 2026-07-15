@@ -36,6 +36,7 @@ ARTIFACT_NAMES = {
     "summary": "summary.json",
     "run_record": "run_record.json",
     "geometry_profile": "geometry_profile.json",
+    "map_preview": "map_preview.geojson",
     "customer_report": "customer_report.md",
     "customer_report_pdf": "customer_report.pdf",
     "customer_intake": "customer_intake.json",
