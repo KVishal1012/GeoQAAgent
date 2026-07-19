@@ -6,7 +6,7 @@ import os
 import time
 from pathlib import Path
 
-from api.index import app
+from api.index import _enrich_run_payload_with_artifacts, app
 from geoqa.production.worker import process_next_run
 
 
@@ -125,6 +125,10 @@ def test_vercel_root_uses_resumable_supabase_upload_for_large_files(monkeypatch,
     assert "x-signature" not in body
     assert "uploadLargeFileWithTus" in body
     assert "leaflet@1.9.4" in body
+    assert "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" in body
+    assert "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" in body
+    assert 'crossorigin="anonymous"' in body
+    assert "unpkg.com/leaflet" not in body
     assert "OpenStreetMap contributors" in body
     assert "renderMapPreview" in body
     assert "loadMapPreviewArtifact" in body
@@ -132,6 +136,39 @@ def test_vercel_root_uses_resumable_supabase_upload_for_large_files(monkeypatch,
     assert "resumable_headers" in body
     assert "session.upload_url" in body
     assert "Uploading large file to Supabase Storage" in body
+
+
+def test_completed_run_hydrates_geometry_metadata_from_remote_summary_artifact():
+    summary = {
+        "dataset": {
+            "feature_count": 7158,
+            "geometry_types": ["LineString", "MultiLineString"],
+            "crs": "EPSG:4326",
+            "geometry_profile": {"primary_geometry_label": "Mixed geometry"},
+        },
+        "spatial_anomalies": {"count": 0, "feature_ids": []},
+    }
+
+    class ArtifactStore:
+        def artifact_bytes(self, run, artifact_name):
+            assert run["run_id"] == "run-production"
+            assert artifact_name == "summary"
+            return json.dumps(summary).encode("utf-8"), "summary.json", "application/json"
+
+    payload = {
+        "run_id": "run-production",
+        "status": "completed",
+        "run_output_dir": "outputs/worker_runs/unavailable-on-vercel",
+        "artifacts": {"summary": {"exists": True, "storage_path": "run-production/summary.json"}},
+    }
+
+    enriched = _enrich_run_payload_with_artifacts(payload, store=ArtifactStore())
+
+    assert enriched["feature_count"] == 7158
+    assert enriched["geometry_types"] == ["LineString", "MultiLineString"]
+    assert enriched["geometry_profile"]["primary_geometry_label"] == "Mixed geometry"
+    assert enriched["crs"] == "EPSG:4326"
+    assert enriched["spatial_anomalies"]["count"] == 0
 
 
 def test_vercel_api_requires_api_key_for_v1_routes(monkeypatch, tmp_path):
@@ -308,6 +345,10 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
     assert processed is not None
     assert processed["run_id"] == run_id
     assert processed["status"] == "completed"
+    assert processed["run_summary"]["dataset"]["feature_count"] == 2
+    assert processed["run_summary"]["dataset"]["geometry_profile"]["primary_geometry_label"] == "Point"
+    assert "map_preview" not in processed["run_summary"]
+    assert processed["run_record"]["feature_count"] == 2
 
     completed = client.get(f"/api/v1/runs/{run_id}", headers=headers)
     completed_payload = completed.get_json()

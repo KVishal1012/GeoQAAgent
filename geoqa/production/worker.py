@@ -39,6 +39,7 @@ def process_next_run(store: BaseProductionStore | None = None, *, output_root: s
             )
             store.heartbeat_run(run_id, worker_id=config.worker_id)
             artifacts = store.upload_artifacts(run_id, result.artifact_paths["output_dir"])
+            run_summary = {key: value for key, value in result.summary.items() if key != "map_preview"}
             completed = store.update_run(
                 run_id,
                 status="completed",
@@ -46,6 +47,8 @@ def process_next_run(store: BaseProductionStore | None = None, *, output_root: s
                 readiness_score=result.run_record.readiness_score,
                 readiness_band=result.run_record.readiness_band,
                 issue_counts=result.issue_counts,
+                run_summary=run_summary,
+                run_record=result.run_record.to_dict(),
                 artifacts=artifacts,
                 error=None,
                 error_type=None,

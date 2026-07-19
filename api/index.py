@@ -237,21 +237,43 @@ def _execute_run(run_id: str) -> None:
 
 
 
-def _enrich_run_payload_with_artifacts(payload: dict[str, Any]) -> dict[str, Any]:
+def _enrich_run_payload_with_artifacts(payload: dict[str, Any], *, store: Any | None = None) -> dict[str, Any]:
+    summary = payload.get("run_summary")
+    if not isinstance(summary, dict) or not summary:
+        summary = {}
+
     output_dir = payload.get("run_output_dir")
-    if not output_dir:
+    summary_path = Path(str(output_dir)) / "summary.json" if output_dir else None
+    if not summary and summary_path and summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            summary = {}
+
+    summary_artifact = (payload.get("artifacts") or {}).get("summary") or {}
+    if not summary and store is not None and summary_artifact.get("exists"):
+        try:
+            data, _, _ = store.artifact_bytes(payload, "summary")
+            summary = json.loads(data.decode("utf-8"))
+        except (ProductionStoreError, UnicodeDecodeError, json.JSONDecodeError):
+            summary = {}
+
+    if not isinstance(summary, dict) or not summary:
         return payload
-    summary_path = Path(str(output_dir)) / "summary.json"
-    if not summary_path.exists():
-        return payload
-    try:
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    except Exception:
-        return payload
+
+    payload["run_summary"] = summary
     dataset = summary.get("dataset") or {}
-    payload.setdefault("geometry_types", dataset.get("geometry_types"))
-    payload.setdefault("geometry_profile", dataset.get("geometry_profile"))
-    payload.setdefault("spatial_anomalies", summary.get("spatial_anomalies"))
+    run_record = payload.get("run_record") or {}
+    if not payload.get("geometry_types"):
+        payload["geometry_types"] = dataset.get("geometry_types") or run_record.get("geometry_types")
+    if not payload.get("geometry_profile"):
+        payload["geometry_profile"] = dataset.get("geometry_profile") or run_record.get("geometry_profile")
+    if not payload.get("spatial_anomalies"):
+        payload["spatial_anomalies"] = summary.get("spatial_anomalies")
+    if payload.get("feature_count") is None:
+        payload["feature_count"] = dataset.get("feature_count", run_record.get("feature_count"))
+    if not payload.get("crs"):
+        payload["crs"] = dataset.get("crs") or run_record.get("crs")
     return payload
 
 def _response(payload: dict[str, Any], status_code: int = 200) -> Response:
@@ -295,9 +317,9 @@ def _landing_page_html() -> str:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GeoQA Data Readiness Audit</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ4HLULoYttRtlHn2YEuyfF3N4hG0w=" crossorigin="" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ4HLULoYttRtlHn2YEuyfF3N4hG0w=" crossorigin="anonymous" />
   <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
   <style>
     :root {
       --bg: #f6f9ff;
@@ -977,8 +999,9 @@ def get_run(run_id: str) -> Any:
             payload = _enrich_run_payload_with_artifacts(payload)
         return _response(payload)
     try:
-        payload = _production_store().get_run(run_id)
-        return _response(_enrich_run_payload_with_artifacts(payload))
+        store = _production_store()
+        payload = store.get_run(run_id)
+        return _response(_enrich_run_payload_with_artifacts(payload, store=store))
     except ProductionStoreError as exc:
         raise _store_error(exc, status_code=404) from exc
 
