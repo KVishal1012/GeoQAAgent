@@ -205,6 +205,54 @@ def test_uat_customer_report_uses_intake_and_cautious_workflow_language(tmp_path
     assert "unsuitable" not in report.lower()
     assert intake["intended_use"] == "sql_load"
 
+
+def test_uat_customer_report_not_ready_without_high_findings_uses_actual_severities(tmp_path):
+    input_path = tmp_path / "cumulative-findings.geojson"
+    output_root = tmp_path / "outputs"
+    sparse_properties = {f"sparse_{index}": None for index in range(12)}
+    _write_geojson(
+        input_path,
+        [
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-1", **sparse_properties},
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[-79.38, 43.65], [-79.37, 43.66]],
+                },
+            },
+            {
+                "type": "Feature",
+                "properties": {"asset_id": "asset-2", **sparse_properties},
+                "geometry": {
+                    "type": "MultiLineString",
+                    "coordinates": [[[-79.36, 43.67], [-79.35, 43.68]]],
+                },
+            },
+        ],
+    )
+
+    result = run_geoqa(
+        input_path=str(input_path),
+        output_root=str(output_root),
+        required_columns=["asset_id"],
+        customer_intake={
+            "customer_name": "City GIS Team",
+            "dataset_name": "Cumulative Findings",
+            "intended_use": "migration",
+        },
+    )
+
+    report = Path(result.artifact_paths["customer_report"]).read_text(encoding="utf-8")
+
+    assert result.run_record.readiness_band == "not_ready"
+    assert result.issue_counts["high"] == 0
+    assert "No high-severity findings were detected." in report
+    assert "cumulative medium- and low-severity findings reduced readiness" in report
+    assert "Review medium-priority findings before production loading or handoff." in report
+    assert "GeoQA detected high-severity findings" not in report
+    assert "until high-severity findings are resolved" not in report
+
 def test_uat_static_gateway_full_review_flow(tmp_path):
     input_path = tmp_path / "clean.geojson"
     output_root = tmp_path / "outputs"

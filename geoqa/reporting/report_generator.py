@@ -158,7 +158,7 @@ def _write_customer_report_pdf(path: Path, context: dict[str, Any]) -> None:
             lines.append(f"Flagged feature IDs: {', '.join(str(value) for value in anomalies['feature_ids'])}")
     else:
         lines.append("No strong spatial outliers were detected by the configured anomaly check.")
-    lines.extend(["", "Critical Findings"])
+    lines.extend(["", "Key Findings"])
     issues = context.get('top_issues') or []
     if issues:
         for issue in issues[:6]:

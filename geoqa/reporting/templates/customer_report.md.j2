@@ -67,7 +67,7 @@ Flagged feature IDs: {{ context.spatial_anomalies.feature_ids | join(", ") }}
 No strong spatial outliers were detected by the configured anomaly check.
 {% endif %}
 
-## Critical Findings
+## Key Findings
 
 {% if context.top_issues %}
 {% for issue in context.top_issues %}
@@ -80,11 +80,9 @@ No strong spatial outliers were detected by the configured anomaly check.
 
 ## Recommended Next Steps
 
-- Review high-priority findings before production loading or handoff.
-- Confirm spatial anomalies with the source system of record.
-- Use `issues.csv` for record-level triage and assignment.
-- Keep `summary.json`, `run_record.json`, and `geometry_profile.json` with the project audit trail.
-- If findings are accepted as valid for the workflow, document the acceptance decision before downstream use.
+{% for step in context.next_steps %}
+- {{ step }}
+{% endfor %}
 
 ## Included Evidence Package
 
