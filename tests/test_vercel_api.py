@@ -128,6 +128,8 @@ def test_vercel_root_uses_resumable_supabase_upload_for_large_files(monkeypatch,
     assert "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" in body
     assert "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" in body
     assert 'crossorigin="anonymous"' in body
+    assert 'leaflet.css" integrity=' not in body
+    assert 'leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="' in body
     assert "unpkg.com/leaflet" not in body
     assert "OpenStreetMap contributors" in body
     assert "renderMapPreview" in body
