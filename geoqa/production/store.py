@@ -43,7 +43,18 @@ ARTIFACT_NAMES = {
     "handoff_bundle": "handoff_bundle.zip",
     "agent_report_draft": "agent_report_draft.md",
     "agent_report": "agent_report.md",
+    "agent_report_json": "agent_report.json",
+    "agent_session": "agent_session.json",
+    "agent_trace": "agent_trace.json",
+    "report_consistency": "report_consistency.json",
+    "hallucination_check": "hallucination_check.json",
     "review_status": "review_status.json",
+    "review_history": "review_history.jsonl",
+    "final_customer_report": "final_customer_report.md",
+    "final_customer_report_pdf": "final_customer_report.pdf",
+    "fix_plan": "fix_plan.md",
+    "fix_plan_json": "fix_plan.json",
+    "bundle_manifest": "bundle_manifest.json",
 }
 
 
@@ -151,6 +162,14 @@ class BaseProductionStore:
         raise NotImplementedError
 
     def upload_artifacts(self, run_id: str, output_dir: str | Path) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def upload_artifact_subset(
+        self,
+        run_id: str,
+        output_dir: str | Path,
+        artifact_names: list[str],
+    ) -> dict[str, Any]:
         raise NotImplementedError
 
     def artifact_bytes(self, run: dict[str, Any], artifact_name: str) -> tuple[bytes, str, str]:
@@ -333,16 +352,29 @@ class LocalProductionStore(BaseProductionStore):
         return destination
 
     def upload_artifacts(self, run_id: str, output_dir: str | Path) -> dict[str, Any]:
+        return self.upload_artifact_subset(run_id, output_dir, list(ARTIFACT_NAMES))
+
+    def upload_artifact_subset(
+        self,
+        run_id: str,
+        output_dir: str | Path,
+        artifact_names: list[str],
+    ) -> dict[str, Any]:
         output_path = Path(output_dir)
         run_artifact_dir = self.artifacts_dir / run_id
         run_artifact_dir.mkdir(parents=True, exist_ok=True)
         artifacts: dict[str, Any] = {}
-        for key, filename in ARTIFACT_NAMES.items():
+        for key in artifact_names:
+            if key not in ARTIFACT_NAMES:
+                raise ProductionStoreError(f"Unknown artifact name: {key}")
+            filename = ARTIFACT_NAMES[key]
             source = output_path / filename
             exists = source.exists()
             target = run_artifact_dir / filename
             if exists:
                 shutil.copy2(source, target)
+            elif target.exists():
+                target.unlink()
             artifacts[key] = {
                 "filename": filename,
                 "exists": exists,
@@ -552,9 +584,20 @@ class SupabaseProductionStore(BaseProductionStore):
         return destination
 
     def upload_artifacts(self, run_id: str, output_dir: str | Path) -> dict[str, Any]:
+        return self.upload_artifact_subset(run_id, output_dir, list(ARTIFACT_NAMES))
+
+    def upload_artifact_subset(
+        self,
+        run_id: str,
+        output_dir: str | Path,
+        artifact_names: list[str],
+    ) -> dict[str, Any]:
         output_path = Path(output_dir)
         artifacts: dict[str, Any] = {}
-        for key, filename in ARTIFACT_NAMES.items():
+        for key in artifact_names:
+            if key not in ARTIFACT_NAMES:
+                raise ProductionStoreError(f"Unknown artifact name: {key}")
+            filename = ARTIFACT_NAMES[key]
             source = output_path / filename
             object_path = f"{run_id}/{filename}"
             exists = source.exists()

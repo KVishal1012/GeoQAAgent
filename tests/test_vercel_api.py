@@ -7,6 +7,9 @@ import time
 from pathlib import Path
 
 from api.index import _enrich_run_payload_with_artifacts, app
+from geoqa.config import load_app_config
+from geoqa.llm.gateway import StaticLLMGateway
+from geoqa.production.store import LocalProductionStore
 from geoqa.production.worker import process_next_run
 
 
@@ -74,7 +77,7 @@ def test_vercel_root_renders_operator_ui(monkeypatch, tmp_path):
     assert "Evidence Package Console" in body
     assert "New run" in body
     assert "Spatial evidence" in body
-    assert "Customer report PDF" in body
+    assert "Final customer report" in body
     assert "Issues CSV" in body
     assert "Handoff bundle" in body
     assert "Approve package" in body
@@ -89,8 +92,9 @@ def test_vercel_root_prioritizes_revenue_artifacts(monkeypatch, tmp_path):
     client = app.test_client()
     body = client.get("/").get_data(as_text=True)
 
-    assert 'primaryArtifactOrder = ["customer_report_pdf", "issues_csv", "handoff_bundle"]' in body
-    assert 'customer_report_pdf: "Customer report PDF"' in body
+    assert 'primaryArtifactOrder = ["final_customer_report_pdf", "issues_csv", "handoff_bundle"]' in body
+    assert 'final_customer_report_pdf: "Final customer report PDF"' in body
+    assert 'name === "final_customer_report_pdf" ? "Awaiting approval"' in body
     assert 'issues_csv: "Issues CSV"' in body
     assert 'handoff_bundle: "Handoff bundle"' in body
     assert 'qa_report: "QA report"' in body
@@ -378,6 +382,68 @@ def test_vercel_upload_run_worker_and_artifact_download(monkeypatch, tmp_path):
     customer_pdf = client.get(f"/api/v1/runs/{run_id}/artifacts/customer_report_pdf/download", headers=headers)
     assert customer_pdf.status_code == 200
     assert customer_pdf.data[:4] == b"%PDF"
+
+
+def test_completed_qa_generates_cited_draft_and_approval_releases_final_report(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+    monkeypatch.setenv("GEOQA_API_KEY", "test-key")
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+
+    source = tmp_path / "uploaded.geojson"
+    _write_geojson(source)
+    store = LocalProductionStore(load_app_config())
+    run = store.create_run(
+        upload_id="upload-agent-flow",
+        filename=source.name,
+        upload_storage_path=str(source),
+        required_columns=["asset_id"],
+    )
+    report_text = (
+        "GeoQA inspected uploaded.geojson, containing 2 features with Point geometry in EPSG:4326. "
+        "The dataset is classified as `ready` with a readiness score of 100/100. "
+        "No QA findings were detected by the configured checks."
+    )
+
+    completed = process_next_run(store=store, agent_gateway=StaticLLMGateway(report_text))
+
+    assert completed is not None
+    assert completed["status"] == "completed"
+    assert completed["review_status"]["status"] == "draft_ready"
+    assert completed["artifacts"]["agent_report_draft"]["exists"] is True
+    assert completed["artifacts"]["agent_trace"]["exists"] is True
+    assert completed["artifacts"]["final_customer_report_pdf"]["exists"] is False
+    draft_bytes, _, _ = store.artifact_bytes(completed, "agent_report_draft")
+    assert b"## Evidence citations" in draft_bytes
+    assert b"summary.json" in draft_bytes
+    assert b"issues.csv" in draft_bytes
+    assert b"run_record.json" in draft_bytes
+
+    client = app.test_client()
+    headers = {"x-api-key": "test-key"}
+    withheld = client.get(
+        f"/api/v1/runs/{run['run_id']}/artifacts/final_customer_report_pdf/download",
+        headers=headers,
+    )
+    assert withheld.status_code == 404
+
+    approved = client.post(
+        f"/api/v1/runs/{run['run_id']}/review",
+        headers=headers,
+        json={"action": "approve", "reviewer_name": "QA Reviewer", "notes": "Evidence checked."},
+    )
+
+    assert approved.status_code == 200
+    assert approved.get_json()["review_status"]["status"] == "approved"
+    final_run = store.get_run(run["run_id"])
+    assert final_run["artifacts"]["final_customer_report"]["exists"] is True
+    assert final_run["artifacts"]["final_customer_report_pdf"]["exists"] is True
+    final_pdf = client.get(
+        f"/api/v1/runs/{run['run_id']}/artifacts/final_customer_report_pdf/download",
+        headers=headers,
+    )
+    assert final_pdf.status_code == 200
+    assert final_pdf.data[:4] == b"%PDF"
 
 
 def test_vercel_upload_init_and_complete_local_fallback(monkeypatch, tmp_path):

@@ -25,6 +25,8 @@ class ReviewStatus:
     notes: str | None = None
     draft_path: str | None = None
     final_path: str | None = None
+    customer_report_path: str | None = None
+    customer_report_pdf_path: str | None = None
     blocking_errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -59,10 +61,16 @@ def approve_agent_report(output_dir: str | Path, reviewer_name: str, notes: str 
     output_path = Path(output_dir)
     draft_path = output_path / "agent_report_draft.md"
     final_path = output_path / "agent_report.md"
+    customer_report_path = output_path / "final_customer_report.md"
+    customer_report_pdf_path = output_path / "final_customer_report.pdf"
 
     _validate_draft_and_checks(output_path, draft_path)
 
     shutil.copyfile(draft_path, final_path)
+    shutil.copyfile(draft_path, customer_report_path)
+    from geoqa.reporting.report_generator import write_markdown_report_pdf
+
+    write_markdown_report_pdf(customer_report_pdf_path, draft_path.read_text(encoding="utf-8"))
     status = ReviewStatus(
         status="approved",
         reviewer_name=reviewer_name,
@@ -70,6 +78,8 @@ def approve_agent_report(output_dir: str | Path, reviewer_name: str, notes: str 
         notes=notes,
         draft_path=str(draft_path),
         final_path=str(final_path),
+        customer_report_path=str(customer_report_path),
+        customer_report_pdf_path=str(customer_report_pdf_path),
     )
     write_review_status(output_path, status)
     return status
@@ -82,11 +92,17 @@ def reject_agent_report(output_dir: str | Path, reviewer_name: str, notes: str |
     output_path = Path(output_dir)
     draft_path = output_path / "agent_report_draft.md"
     final_path = output_path / "agent_report.md"
+    customer_report_path = output_path / "final_customer_report.md"
+    customer_report_pdf_path = output_path / "final_customer_report.pdf"
 
     if not draft_path.exists():
         raise ReviewError("agent_report_draft.md does not exist.")
     if final_path.exists():
         final_path.unlink()
+    if customer_report_path.exists():
+        customer_report_path.unlink()
+    if customer_report_pdf_path.exists():
+        customer_report_pdf_path.unlink()
 
     status = ReviewStatus(
         status="rejected",
@@ -95,6 +111,8 @@ def reject_agent_report(output_dir: str | Path, reviewer_name: str, notes: str |
         notes=notes,
         draft_path=str(draft_path),
         final_path=None,
+        customer_report_path=None,
+        customer_report_pdf_path=None,
     )
     write_review_status(output_path, status)
     return status
@@ -129,6 +147,8 @@ def append_review_history(output_dir: str | Path, status: ReviewStatus) -> str:
         "notes": status.notes,
         "draft_path": status.draft_path,
         "final_path": status.final_path,
+        "customer_report_path": status.customer_report_path,
+        "customer_report_pdf_path": status.customer_report_pdf_path,
         "blocking_errors": list(status.blocking_errors),
         "warnings": list(status.warnings),
     }

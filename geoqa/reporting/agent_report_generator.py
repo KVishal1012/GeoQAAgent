@@ -63,6 +63,8 @@ def review_existing_agent_report(
     _update_agent_json_review_status(output_dir, status)
     return {
         "agent_report": str(status.final_path) if status.final_path else None,
+        "final_customer_report": str(status.customer_report_path) if status.customer_report_path else None,
+        "final_customer_report_pdf": str(status.customer_report_pdf_path) if status.customer_report_pdf_path else None,
         "review_status": str(output_path / "review_status.json"),
         "review_history": str(output_path / "review_history.jsonl"),
     }

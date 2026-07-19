@@ -6,6 +6,7 @@ import pytest
 from app import build_parser, validate_args
 from geoqa.llm.gateway import LLMGatewayError, OpenAILLMGateway, StaticFileLLMGateway, StaticLLMGateway
 from geoqa.reporting.agent_report_generator import generate_agent_report_artifacts, review_existing_agent_report
+from geoqa.reporting.report_generator import write_markdown_report_pdf
 from geoqa.review.human_review import ReviewError, approve_agent_report, read_review_history, read_review_status, reject_agent_report
 from geoqa.runner import run_geoqa
 
@@ -51,7 +52,10 @@ def test_agent_report_generation_writes_draft_but_not_final_before_approval(tmp_
     assert Path(artifacts["hallucination_check"]).exists()
     assert Path(artifacts["review_status"]).exists()
     assert Path(artifacts["review_history"]).exists()
+    assert "## Evidence citations" in Path(artifacts["agent_report_draft"]).read_text(encoding="utf-8")
     assert not (output_dir / "agent_report.md").exists()
+    assert not (output_dir / "final_customer_report.md").exists()
+    assert not (output_dir / "final_customer_report.pdf").exists()
 
 
 def test_agent_report_approval_writes_final_report(tmp_path):
@@ -68,6 +72,19 @@ def test_agent_report_approval_writes_final_report(tmp_path):
 
     assert status.status == "approved"
     assert Path(status.final_path).exists()
+    assert Path(status.customer_report_path).exists()
+    assert Path(status.customer_report_pdf_path).read_bytes()[:4] == b"%PDF"
+
+
+def test_final_customer_pdf_paginates_long_approved_report(tmp_path):
+    output_path = tmp_path / "final_customer_report.pdf"
+    markdown = "\n".join(f"Evidence line {index}: deterministic QA result." for index in range(100))
+
+    write_markdown_report_pdf(output_path, markdown)
+
+    payload = output_path.read_bytes()
+    assert payload[:4] == b"%PDF"
+    assert b"/Count 3" in payload
 
 
 def test_agent_report_approval_requires_reviewer_name(tmp_path):

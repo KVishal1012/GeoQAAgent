@@ -390,6 +390,19 @@ python app.py --review-output-dir demo/output --export-handoff-bundle
 - `review_status.json`
 - `review_history.jsonl`
 - `agent_report.md` only after approval
+- `final_customer_report.md` and `final_customer_report.pdf` only after approval
+
+### Production approval gate
+
+The production worker now connects the full report-delivery sequence:
+
+1. deterministic QA completes and writes its evidence artifacts
+2. the bounded `report` agent generates a draft with an explicit evidence-citation section
+3. grounding and consistency checks must pass before the draft becomes reviewable
+4. a named human reviewer approves or rejects the draft
+5. approval releases the final customer Markdown and PDF artifacts
+
+Supabase-backed reviews materialize the required evidence from artifact storage, so the Vercel review API does not depend on access to the worker's local filesystem.
 
 ### V4 Streamlit flow
 

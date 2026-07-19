@@ -46,13 +46,15 @@ GEOQA_WORKER_STALE_AFTER_SECONDS=900
 GEOQA_WORKER_MAX_ATTEMPTS=3
 ```
 
-Optional agent settings:
+Agent settings required for the approval-gated customer report workflow:
 
 ```bash
 OPENAI_API_KEY=<openai-key>
 GEOQA_LLM_MODEL=<model>
 GEOQA_AGENT_REPORT_ENABLED=true
 ```
+
+When these values are configured on the worker, every deterministic QA success runs the bounded `report` agent before the production run is marked complete. The agent writes a cited draft and its trace, consistency, and grounding checks. If agent generation fails, the worker retry policy applies; the run is not presented as a reviewable completed package.
 
 ## Copy-Paste MVP Flow
 
@@ -74,8 +76,10 @@ Use the page to:
 - upload a `.geojson`, `.gpkg`, or zipped shapefile
 - optionally enter a target CRS/SRID for reprojection
 - queue the QA run
-- wait for status to become `completed`
-- download `qa_report.md`, `issues.csv`, `summary.json`, and `run_record.json`
+- wait for status to become `completed` with review status `draft_ready`
+- inspect the cited agent draft and deterministic evidence artifacts
+- approve or reject the draft with a reviewer name and optional notes
+- download `final_customer_report.md` or `final_customer_report.pdf` only after approval
 
 ## Smoke Tests
 
@@ -93,6 +97,8 @@ Expected results:
 - target SRIDs are normalized to EPSG CRS strings before processing.
 - the worker processes queued runs.
 - completed runs expose downloadable QA artifacts.
+- configured workers generate a bounded cited draft after deterministic QA.
+- the final customer report is unavailable before approval and downloadable after approval.
 
 ## V1.1 Large-File Mode
 

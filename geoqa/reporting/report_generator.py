@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import csv
 import json
+import re
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -171,28 +173,64 @@ def _write_customer_report_pdf(path: Path, context: dict[str, Any]) -> None:
     _write_simple_pdf(path, lines)
 
 
+def write_markdown_report_pdf(path: str | Path, markdown_text: str, *, title: str = "GeoQA Final Customer Report") -> str:
+    """Render an approved Markdown report into the dependency-free customer PDF format."""
+    lines = [title, ""]
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            lines.append("")
+            continue
+        line = re.sub(r"^#{1,6}\s+", "", line)
+        line = re.sub(r"^[-*]\s+", "- ", line)
+        line = line.replace("`", "").replace("**", "")
+        lines.append(line)
+    output_path = Path(path)
+    _write_simple_pdf(output_path, lines)
+    return str(output_path)
+
+
 
 def _write_simple_pdf(path: Path, lines: list[str]) -> None:
     def esc(text: str) -> str:
-        return text.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+        normalized = (
+            text.replace("—", "-")
+            .replace("–", "-")
+            .replace("•", "-")
+            .encode("latin-1", errors="replace")
+            .decode("latin-1")
+        )
+        return normalized.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
 
-    content_lines = ["BT", "/F1 12 Tf", "72 740 Td"]
-    first = True
+    wrapped_lines: list[str] = []
     for line in lines:
-        safe = esc(str(line))
-        if first:
-            content_lines.append(f"({safe}) Tj")
-            first = False
-        else:
-            content_lines.append("0 -16 Td")
-            content_lines.append(f"({safe}) Tj")
-    content_lines.append("ET")
-    content = "\n".join(content_lines).encode("utf-8")
-    objects: list[bytes] = []
-    objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
-    objects.append(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
-    objects.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>")
-    objects.append(f"<< /Length {len(content)} >>\nstream\n".encode("utf-8") + content + b"\nendstream")
+        wrapped_lines.extend(textwrap.wrap(str(line), width=82) or [""])
+    page_lines = [wrapped_lines[index : index + 42] for index in range(0, len(wrapped_lines), 42)] or [[""]]
+
+    font_object_number = 3 + (2 * len(page_lines))
+    page_object_numbers = [3 + (2 * index) for index in range(len(page_lines))]
+    kids = " ".join(f"{number} 0 R" for number in page_object_numbers)
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        f"<< /Type /Pages /Kids [{kids}] /Count {len(page_lines)} >>".encode("ascii"),
+    ]
+
+    for index, page in enumerate(page_lines):
+        content_lines = ["BT", "/F1 11 Tf", "54 740 Td"]
+        for line_index, line in enumerate(page):
+            if line_index:
+                content_lines.append("0 -16 Td")
+            content_lines.append(f"({esc(line)}) Tj")
+        content_lines.append("ET")
+        content = "\n".join(content_lines).encode("latin-1")
+        content_object_number = page_object_numbers[index] + 1
+        objects.append(
+            (
+                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                f"/Contents {content_object_number} 0 R /Resources << /Font << /F1 {font_object_number} 0 R >> >> >>"
+            ).encode("ascii")
+        )
+        objects.append(f"<< /Length {len(content)} >>\nstream\n".encode("ascii") + content + b"\nendstream")
     objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
     pdf = bytearray(b"%PDF-1.4\n")
     offsets = [0]

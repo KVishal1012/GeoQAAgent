@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import threading
 import uuid
 from dataclasses import asdict, dataclass
@@ -13,7 +14,8 @@ from flask import Flask, Response, g, jsonify, request
 
 from geoqa.config import load_app_config
 from geoqa.normalization.crs_normalizer import normalize_target_crs
-from geoqa.production.store import ProductionStoreError, build_production_store
+from geoqa.production.report_workflow import generate_bounded_report_draft
+from geoqa.production.store import ARTIFACT_NAMES, BaseProductionStore, ProductionStoreError, build_production_store
 from geoqa.reporting.agent_report_generator import read_agent_review_status, review_existing_agent_report
 from geoqa.runner import run_geoqa
 
@@ -222,6 +224,7 @@ def _execute_run(run_id: str) -> None:
             target_crs=state.target_crs,
             customer_intake=state.customer_intake or {},
         )
+        generate_bounded_report_draft(result, _runtime_config())
         _update_state(
             run_id,
             status="completed",
@@ -543,7 +546,7 @@ def _landing_page_html() -> str:
           <div class="score-card"><div class="score-ring"><span id="readinessScore">--</span></div><div><strong id="readinessBand">Waiting for run</strong><p id="decisionText">Upload a dataset or open a recent run to review readiness evidence.</p></div></div>
           <div class="status-grid"><div class="status"><span class="label">Run ID</span><span id="runId" class="value">Not started</span></div><div class="status"><span class="label">Status</span><span id="runStatus" class="value">Waiting</span></div><div class="status"><span class="label">Current run</span><span id="currentFilename" class="value">-</span></div></div>
         </div></section>
-        <section class="panel"><div class="panel-body"><h2>Revenue package</h2><p class="subtitle">Primary customer deliverables come first.</p><div id="primaryArtifacts" class="package-list"></div><div class="download-row" style="margin-top: 12px;"><div class="download-card"><strong>Customer report PDF</strong><p class="subtitle">Buyer-ready summary.</p></div><div class="download-card"><strong>Issues CSV</strong><p class="subtitle">Record-level evidence.</p></div><div class="download-card"><strong>Handoff bundle</strong><p class="subtitle">Package ZIP.</p></div></div><details><summary>Secondary artifacts</summary><div id="secondaryArtifacts" class="secondary-links"></div></details></div></section>
+        <section class="panel"><div class="panel-body"><h2>Revenue package</h2><p class="subtitle">The final customer report is released only after human approval.</p><div id="primaryArtifacts" class="package-list"></div><div class="download-row" style="margin-top: 12px;"><div class="download-card"><strong>Final customer report</strong><p class="subtitle">Approval-gated PDF.</p></div><div class="download-card"><strong>Issues CSV</strong><p class="subtitle">Record-level evidence.</p></div><div class="download-card"><strong>Handoff bundle</strong><p class="subtitle">Package ZIP.</p></div></div><details><summary>Secondary artifacts</summary><div id="secondaryArtifacts" class="secondary-links"></div></details></div></section>
         <section class="panel"><div class="panel-body"><h2>Reviewer approval</h2><div class="review-box"><label for="reviewerName">Reviewer name</label><input id="reviewerName" type="text" placeholder="QA Reviewer" /><label for="reviewNotes">Review notes</label><textarea id="reviewNotes" placeholder="Approval, rejection, or customer handoff notes"></textarea><div class="review-actions"><button id="approvePackage">Approve package</button><button id="rejectPackage" class="danger">Reject</button></div><p id="reviewStatus" class="subtitle">Review gate is available after a reviewable draft exists.</p></div></div></section>
         <section class="panel light"><div class="panel-body" id="reportPreview"><h2>Customer report preview</h2><p>Run GeoQA to generate the buyer-facing readiness narrative, geometry profile, spatial anomaly summary, and recommended next actions.</p></div></section>
         <pre id="raw" class="raw"></pre>
@@ -559,9 +562,9 @@ def _landing_page_html() -> str:
     let geoqaBoundsLayer = null;
     let geoqaPreviewLayer = null;
     const $ = (id) => document.getElementById(id);
-    const primaryArtifactOrder = ["customer_report_pdf", "issues_csv", "handoff_bundle"];
-    const secondaryArtifactOrder = ["qa_report", "summary", "run_record", "geometry_profile", "map_preview", "customer_report", "customer_intake", "review_status", "review_history", "agent_report_draft", "agent_report", "agent_report_json", "agent_session", "agent_trace", "report_consistency", "hallucination_check", "fix_plan", "fix_plan_json", "bundle_manifest"];
-    const artifactLabels = { customer_report_pdf: "Customer report PDF", issues_csv: "Issues CSV", handoff_bundle: "Handoff bundle", qa_report: "QA report", summary: "Summary JSON", run_record: "Run record JSON", geometry_profile: "Geometry profile JSON", map_preview: "Map preview GeoJSON", customer_report: "Customer report Markdown", customer_intake: "Customer intake JSON", review_status: "Review status", review_history: "Review history", agent_report_draft: "AI draft report", agent_report: "AI final report", agent_report_json: "AI report metadata", agent_session: "Agent session", agent_trace: "Agent trace", report_consistency: "Report consistency", hallucination_check: "Hallucination check", fix_plan: "Fix plan", fix_plan_json: "Fix plan JSON", bundle_manifest: "Bundle manifest" };
+    const primaryArtifactOrder = ["final_customer_report_pdf", "issues_csv", "handoff_bundle"];
+    const secondaryArtifactOrder = ["qa_report", "summary", "run_record", "geometry_profile", "map_preview", "customer_report", "customer_report_pdf", "customer_intake", "review_status", "review_history", "agent_report_draft", "agent_report", "final_customer_report", "agent_report_json", "agent_session", "agent_trace", "report_consistency", "hallucination_check", "fix_plan", "fix_plan_json", "bundle_manifest"];
+    const artifactLabels = { final_customer_report_pdf: "Final customer report PDF", final_customer_report: "Final customer report Markdown", customer_report_pdf: "Deterministic customer summary PDF", issues_csv: "Issues CSV", handoff_bundle: "Handoff bundle", qa_report: "QA report", summary: "Summary JSON", run_record: "Run record JSON", geometry_profile: "Geometry profile JSON", map_preview: "Map preview GeoJSON", customer_report: "Deterministic customer summary", customer_intake: "Customer intake JSON", review_status: "Review status", review_history: "Review history", agent_report_draft: "Cited agent draft", agent_report: "Approved agent report", agent_report_json: "Agent report metadata", agent_session: "Agent session", agent_trace: "Agent trace", report_consistency: "Report consistency", hallucination_check: "Hallucination check", fix_plan: "Fix plan", fix_plan_json: "Fix plan JSON", bundle_manifest: "Bundle manifest" };
     function headers(json = false) { const value = $("apiKey").value.trim(); const output = {}; if (value) output["x-api-key"] = value; if (json) output["Content-Type"] = "application/json"; return output; }
     function setMessage(text, isError = false) { $("message").textContent = text; $("message").className = "message" + (isError ? " error" : ""); }
     async function readJson(response) { const payload = await response.json(); if (!response.ok) { const error = payload.error || {}; throw new Error(error.message || "Request failed"); } return payload; }
@@ -639,7 +642,8 @@ def _landing_page_html() -> str:
         const artifact = currentArtifacts[name] || {};
         const label = artifactLabels[name] || name;
         if (artifact.exists && artifact.url) return `<div class="package-row"><a href="${artifact.url}" target="_blank" rel="noopener">${label}</a><span class="status-note ready">Ready</span></div>`;
-        return `<div class="package-row"><span>${label}</span><span class="status-note">${name === "handoff_bundle" ? "Not generated yet" : "Pending"}</span></div>`;
+        const pendingLabel = name === "final_customer_report_pdf" ? "Awaiting approval" : (name === "handoff_bundle" ? "Not generated yet" : "Pending");
+        return `<div class="package-row"><span>${label}</span><span class="status-note">${pendingLabel}</span></div>`;
       }).join("");
       $("secondaryArtifacts").innerHTML = secondaryArtifactOrder.map((name) => {
         const artifact = currentArtifacts[name] || {};
@@ -690,7 +694,11 @@ def _landing_page_html() -> str:
     function renderReview(payload) {
       const status = payload.review_status || {};
       const reviewable = payload.status === "completed" && status && ["draft_ready", "rejected", "approved"].includes(status.status);
-      $("reviewStatus").textContent = status.status ? `Review status: ${titleCase(status.status)}` : "Review is available when an AI draft exists for a completed run.";
+      if (status.status === "draft_ready") $("reviewStatus").textContent = "Cited agent draft ready. Human approval is required before the final customer report is released.";
+      else if (status.status === "approved") $("reviewStatus").textContent = `Approved${status.reviewer_name ? ` by ${status.reviewer_name}` : ""}. Final customer report released.`;
+      else if (status.status === "blocked") $("reviewStatus").textContent = "Agent draft blocked by grounding or consistency checks.";
+      else if (status.status === "rejected") $("reviewStatus").textContent = "Draft rejected. Review notes are preserved in the audit history.";
+      else $("reviewStatus").textContent = "Review is available when a cited agent draft exists for a completed run.";
       $("approvePackage").disabled = !reviewable || status.status === "approved";
       $("rejectPackage").disabled = !reviewable;
     }
@@ -747,7 +755,7 @@ def _landing_page_html() -> str:
     async function refreshRun() {
       if (!currentRunId) return;
       const response = await fetch(`/api/v1/runs/${currentRunId}`, { headers: headers() }); const payload = await readJson(response); renderRun(payload);
-      if (payload.status === "completed") { clearInterval(pollTimer); await loadArtifacts(currentRunId); setMessage("Run completed. Audit package artifacts are ready."); }
+      if (payload.status === "completed") { clearInterval(pollTimer); await loadArtifacts(currentRunId); setMessage(payload.review_status?.status === "draft_ready" ? "QA completed. Cited agent draft is ready for human review." : "QA completed. Deterministic evidence artifacts are ready."); }
       else if (payload.status === "failed") { clearInterval(pollTimer); setMessage(payload.error || "Run failed.", true); }
       else setMessage("Run is queued or running. Keep this page open.");
     }
@@ -756,7 +764,7 @@ def _landing_page_html() -> str:
       try {
         const reviewer = $("reviewerName").value.trim(); if (!reviewer) throw new Error("Reviewer name is required.");
         const response = await fetch(`/api/v1/runs/${currentRunId}/review`, { method: "POST", headers: headers(true), body: JSON.stringify({ action, reviewer_name: reviewer, notes: $("reviewNotes").value.trim() }) });
-        const payload = await readJson(response); setMessage(`Package ${action} recorded.`); await refreshRun(); await loadArtifacts(currentRunId); $("reviewStatus").textContent = `Review status: ${titleCase(payload.review_status?.status || action)}`;
+        const payload = await readJson(response); setMessage(action === "approve" ? "Approval recorded. Final customer report released." : "Rejection recorded. Final customer report remains withheld."); await refreshRun(); await loadArtifacts(currentRunId); $("reviewStatus").textContent = `Review status: ${titleCase(payload.review_status?.status || action)}`;
       } catch (error) { setMessage(error.message, true); }
     }
     $("newRunButton").addEventListener("click", () => $("newRunPanel").classList.toggle("open"));
@@ -800,6 +808,8 @@ def _artifact_manifest(output_dir: Path, run_id: str | None = None) -> dict[str,
         "customer_intake": output_dir / "customer_intake.json",
         "agent_report_draft": output_dir / "agent_report_draft.md",
         "agent_report": output_dir / "agent_report.md",
+        "final_customer_report": output_dir / "final_customer_report.md",
+        "final_customer_report_pdf": output_dir / "final_customer_report.pdf",
         "agent_report_json": output_dir / "agent_report.json",
         "agent_session": output_dir / "agent_session.json",
         "agent_trace": output_dir / "agent_trace.json",
@@ -1006,6 +1016,72 @@ def get_run(run_id: str) -> Any:
         raise _store_error(exc, status_code=404) from exc
 
 
+_REVIEW_SOURCE_ARTIFACTS = [
+    "agent_report_draft",
+    "agent_report_json",
+    "report_consistency",
+    "hallucination_check",
+    "review_status",
+    "review_history",
+]
+_REVIEW_OUTPUT_ARTIFACTS = [
+    "agent_report",
+    "agent_report_json",
+    "review_status",
+    "review_history",
+    "final_customer_report",
+    "final_customer_report_pdf",
+]
+
+
+def _review_stored_report(
+    store: BaseProductionStore,
+    run: dict[str, Any],
+    *,
+    action: str,
+    reviewer_name: str,
+    notes: str | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Review remotely stored artifacts without relying on the worker filesystem."""
+    with tempfile.TemporaryDirectory(prefix="geoqa-review-") as temp_dir:
+        output_dir = Path(temp_dir)
+        available = run.get("artifacts") or {}
+        for artifact_name in _REVIEW_SOURCE_ARTIFACTS:
+            artifact = available.get(artifact_name) or {}
+            if not artifact.get("exists"):
+                continue
+            data, filename, _ = store.artifact_bytes(run, artifact_name)
+            safe_filename = Path(filename).name or ARTIFACT_NAMES[artifact_name]
+            (output_dir / safe_filename).write_bytes(data)
+
+        review_existing_agent_report(
+            output_dir,
+            action=action,
+            reviewer_name=reviewer_name,
+            notes=notes,
+        )
+        review_status = read_agent_review_status(output_dir)
+        changed_artifacts = store.upload_artifact_subset(
+            str(run["run_id"]),
+            output_dir,
+            _REVIEW_OUTPUT_ARTIFACTS,
+        )
+
+    merged_artifacts = dict(available)
+    merged_artifacts.update(changed_artifacts)
+    store.update_run(
+        str(run["run_id"]),
+        review_status=review_status,
+        artifacts=merged_artifacts,
+    )
+    store.append_event(
+        str(run["run_id"]),
+        f"review_{action}",
+        {"reviewer_name": reviewer_name, "notes": notes},
+    )
+    return review_status, merged_artifacts
+
+
 @app.post("/api/v1/runs/<run_id>/review")
 def review_run(run_id: str) -> Any:
     state = _read_state_or_none(run_id)
@@ -1033,21 +1109,24 @@ def review_run(run_id: str) -> Any:
         raise APIError("validation_error", "reviewer_name is required.", details={"field": "reviewer_name"})
 
     try:
-        artifacts = review_existing_agent_report(
-            str(output_dir),
-            action=action,
-            reviewer_name=reviewer_name,
-            notes=str(notes) if notes is not None else None,
-        )
+        if state is None:
+            review_status, artifacts = _review_stored_report(
+                _production_store(),
+                run,
+                action=action,
+                reviewer_name=reviewer_name,
+                notes=str(notes) if notes is not None else None,
+            )
+        else:
+            artifacts = review_existing_agent_report(
+                str(output_dir),
+                action=action,
+                reviewer_name=reviewer_name,
+                notes=str(notes) if notes is not None else None,
+            )
+            review_status = read_agent_review_status(str(output_dir))
     except Exception as exc:
         raise APIError("review_failed", str(exc), status_code=409) from exc
-
-    review_status = read_agent_review_status(str(output_dir))
-    if state is None:
-        try:
-            _production_store().update_run(run_id, review_status=review_status)
-        except ProductionStoreError:
-            pass
     return _response(
         {
             "run_id": run_id,

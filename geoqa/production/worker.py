@@ -8,11 +8,18 @@ from pathlib import Path
 from typing import Any
 
 from geoqa.config import load_app_config
+from geoqa.llm.gateway import LLMGateway
+from geoqa.production.report_workflow import generate_bounded_report_draft
 from geoqa.production.store import BaseProductionStore, ProductionStoreError, build_production_store
 from geoqa.runner import run_geoqa
 
 
-def process_next_run(store: BaseProductionStore | None = None, *, output_root: str | Path | None = None) -> dict[str, Any] | None:
+def process_next_run(
+    store: BaseProductionStore | None = None,
+    *,
+    output_root: str | Path | None = None,
+    agent_gateway: LLMGateway | None = None,
+) -> dict[str, Any] | None:
     config = load_app_config()
     store = store or build_production_store(config)
     run = store.claim_next_run(
@@ -38,6 +45,8 @@ def process_next_run(store: BaseProductionStore | None = None, *, output_root: s
                 customer_intake=run.get("customer_intake") or {},
             )
             store.heartbeat_run(run_id, worker_id=config.worker_id)
+            review_status = generate_bounded_report_draft(result, config, gateway=agent_gateway)
+            store.heartbeat_run(run_id, worker_id=config.worker_id)
             artifacts = store.upload_artifacts(run_id, result.artifact_paths["output_dir"])
             run_summary = {key: value for key, value in result.summary.items() if key != "map_preview"}
             completed = store.update_run(
@@ -50,6 +59,7 @@ def process_next_run(store: BaseProductionStore | None = None, *, output_root: s
                 run_summary=run_summary,
                 run_record=result.run_record.to_dict(),
                 artifacts=artifacts,
+                review_status=review_status,
                 error=None,
                 error_type=None,
             )

@@ -154,11 +154,13 @@ def run_agent_task_artifacts(
     consistency_path = output_dir / "report_consistency.json"
     hallucination_path = output_dir / "hallucination_check.json"
 
-    draft_path.write_text(writer_response.text, encoding="utf-8")
-
     playbook_payload = _extract_playbook_payload(tool_calls)
+    citations = _build_evidence_citations(playbook_payload)
+    report_text = _append_evidence_citations(writer_response.text, citations)
+    draft_path.write_text(report_text, encoding="utf-8")
+
     consistency = check_report_consistency(
-        writer_response.text,
+        report_text,
         evidence["summary"],
         evidence["issues"],
         evidence["run_record"],
@@ -167,7 +169,7 @@ def run_agent_task_artifacts(
     consistency_path.write_text(json.dumps(consistency.to_dict(), indent=2), encoding="utf-8")
 
     hallucination = monitor_report_grounding(
-        writer_response.text,
+        report_text,
         evidence["summary"],
         evidence["issues"],
         evidence["run_record"],
@@ -220,10 +222,11 @@ def run_agent_task_artifacts(
         "prompt_name": selected_prompt,
         "generated_at": finished_at,
         "task": task,
-        "grounding_sources": ["summary.json", "issues.csv", "run_record.json"] + [item.get("source") for item in playbook_payload],
+        "grounding_sources": [citation["source"] for citation in citations],
+        "citations": citations,
         "runtime_config": runtime_config or {},
         "playbooks": playbook_payload,
-        "report_text": writer_response.text,
+        "report_text": report_text,
         "raw": writer_response.raw,
         "consistency": consistency.to_dict(),
         "hallucination": hallucination.to_dict(),
@@ -301,6 +304,37 @@ def _extract_playbook_text(tool_calls: list[AgentToolCall]) -> str:
         if text:
             chunks.append(str(text))
     return "\n\n".join(chunks) if chunks else "No fix playbooks were retrieved for this run."
+
+
+def _build_evidence_citations(playbooks: list[dict[str, Any]]) -> list[dict[str, str]]:
+    citations = [
+        {"source": "summary.json", "label": "Dataset profile, readiness result, and spatial anomaly summary"},
+        {"source": "issues.csv", "label": "Record-level findings and severity evidence"},
+        {"source": "run_record.json", "label": "Run configuration, executed checks, and audit metadata"},
+        {"source": "agent_trace.json", "label": "Ordered bounded-agent tool trace"},
+    ]
+    seen = {citation["source"] for citation in citations}
+    for playbook in playbooks:
+        source = str(playbook.get("source") or "").strip()
+        if not source or source in seen:
+            continue
+        citations.append(
+            {
+                "source": source,
+                "label": str(playbook.get("title") or "Retrieved remediation playbook"),
+            }
+        )
+        seen.add(source)
+    return citations
+
+
+def _append_evidence_citations(report_text: str, citations: list[dict[str, str]]) -> str:
+    stripped = report_text.rstrip()
+    if "## Evidence citations" in stripped:
+        return stripped + "\n"
+    citation_lines = ["", "## Evidence citations", ""]
+    citation_lines.extend(f"- `{item['source']}` — {item['label']}" for item in citations)
+    return stripped + "\n" + "\n".join(citation_lines) + "\n"
 
 
 def _update_agent_json_review_status(agent_json_path: Path, status: ReviewStatus) -> None:
