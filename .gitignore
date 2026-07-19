@@ -11,3 +11,4 @@ demo/output/geoqa-*/
 vercel.env
 .npm-cache/
 .vercel-cli/
+.codex_tmp/

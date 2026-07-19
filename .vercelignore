@@ -1,6 +1,7 @@
 # Local caches and deploy tooling
 .npm-cache/
 .vercel-cli/
+.codex_tmp/
 .npm/
 node_modules/
 
