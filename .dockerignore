@@ -1,4 +1,9 @@
 .git
+.env*
+!.env.example
+vercel.env
+.vercel
+.codex_tmp
 .pytest_cache
 __pycache__
 *.py[cod]

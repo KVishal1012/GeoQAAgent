@@ -65,7 +65,7 @@ Recommended production worker values:
 
 The production worker runs as one Cloud Run worker-pool instance in `us-east4` with `2 vCPU` and `8 GiB` memory. Build the existing Docker image, override its command with `python3 -m geoqa.production.worker`, and mount the Supabase service-role and OpenAI values from Secret Manager.
 
-Use dedicated GCP project `geoqa-agent-prod-kv1012-20260725`. Keep `/tmp/geoqa-outputs` ephemeral; completed artifacts must be uploaded to Supabase before a job is marked ready.
+Use dedicated GCP project `geoqa-prod-kv1012-260725`. Keep `/tmp/geoqa-outputs` ephemeral; completed artifacts must be uploaded to Supabase before a job is marked ready.
 
 ## Vercel Verification
 
