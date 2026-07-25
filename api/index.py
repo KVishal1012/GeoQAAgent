@@ -18,6 +18,7 @@ from geoqa.production.report_workflow import generate_bounded_report_draft
 from geoqa.production.store import ARTIFACT_NAMES, BaseProductionStore, ProductionStoreError, build_production_store
 from geoqa.reporting.agent_report_generator import read_agent_review_status, review_existing_agent_report
 from geoqa.runner import run_geoqa
+from geoqa.workflows import export_handoff_bundle, generate_fix_plan_artifacts
 
 app = Flask(__name__)
 
@@ -320,6 +321,7 @@ def _landing_page_html() -> str:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GeoQA Data Readiness Audit</title>
+  <link rel="icon" href="data:," />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
   <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
@@ -376,96 +378,100 @@ def _landing_page_html() -> str:
     textarea { min-height: 80px; resize: vertical; }
     label { display: block; margin: 10px 0 6px; font-weight: 850; font-size: 12px; color: #304a6f; }
     h1, h2, h3, p { margin-top: 0; }
-    h1 { margin-bottom: 4px; font-size: clamp(32px, 5vw, 68px); letter-spacing: -.07em; line-height: .9; }
+    h1 { margin-bottom: 6px; font-size: clamp(32px, 4vw, 50px); letter-spacing: -.055em; line-height: .96; }
     h2 { margin-bottom: 12px; font-size: 16px; letter-spacing: -.015em; }
     h3 { margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
     p { color: var(--muted); line-height: 1.5; }
-    .shell { width: min(1560px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 34px; position: relative; }
-    .topbar { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start; margin-bottom: 16px; }
+    .shell { width: min(1320px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 34px; position: relative; }
+    .topbar { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; margin-bottom: 18px; }
     .brand { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; }
-    .mark { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 18px; color: white; background: linear-gradient(135deg, #06152a, #0b2f66); font-weight: 950; box-shadow: 0 18px 45px rgba(11,47,102,.18); }
+    .mark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; color: white; background: linear-gradient(135deg, #06152a, #0b2f66); font-weight: 950; box-shadow: 0 14px 36px rgba(11,47,102,.18); }
     .subtitle { margin: 0; font-size: 13px; color: var(--muted); }
-    .kicker { color: var(--lime); text-transform: uppercase; letter-spacing: .18em; font-size: 11px; font-weight: 950; margin-bottom: 8px; }
-    .command { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; margin-top: 14px; }
+    .kicker { color: var(--lime); text-transform: uppercase; letter-spacing: .16em; font-size: 10px; font-weight: 950; margin-bottom: 7px; }
     .top-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
     .pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 7px 10px; border: 1px solid var(--line); background: rgba(255,255,255,.78); color: var(--ink); font-size: 12px; font-weight: 850; backdrop-filter: blur(16px); }
     .pill.hot { border-color: rgba(178,59,59,.24); color: var(--red); background: #fff3f3; }
     .pill.lime { color: white; background: var(--lime); border-color: transparent; }
-    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 24px 80px var(--shadow); backdrop-filter: blur(20px); overflow: hidden; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 14px 48px rgba(11,31,58,.09); backdrop-filter: blur(20px); overflow: hidden; }
     .panel.light { background: var(--panel-2); color: var(--ink-dark); }
     .panel.light p, .panel.light .subtitle, .panel.light .label { color: #617067; }
     .panel-body { padding: 18px; }
-    .lab-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr) 380px; gap: 16px; align-items: stretch; }
-    .left-rail, .right-rail { display: grid; gap: 16px; align-content: start; }
+    .lab-grid { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .left-rail { display: grid; gap: 16px; align-content: start; position: sticky; top: 16px; }
     .main-stage { display: grid; gap: 16px; }
     .new-run { display: none; margin-bottom: 16px; border-color: rgba(200,255,116,.32); }
     .new-run.open { display: block; animation: slideIn .22s ease-out; }
     @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-    .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 12px; }
     .wide { grid-column: span 2; }
     .full { grid-column: 1 / -1; }
     .message { min-height: 22px; margin-top: 10px; font-weight: 850; color: var(--mint); }
-    .message.error { color: #ffb0a8; }
+    .message.error { color: var(--red); }
+    .global-message { margin: 0 0 16px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.9); }
+    .global-message:empty { display: none; }
     .filter-row { display: flex; flex-wrap: wrap; gap: 7px; }
-    .filter-chip, .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #f3f7fd; color: var(--ink); border-radius: 999px; padding: 7px 9px; font-size: 12px; font-weight: 850; }
-    .filter-chip.active { background: var(--lime); color: white; border-color: transparent; }
-    .metric-stack { display: grid; gap: 9px; }
-    .metric { padding: 13px; border: 1px solid var(--line); border-radius: 18px; background: #f8fbff; }
-    .metric strong { display: block; font-size: 30px; line-height: 1; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #f3f7fd; color: var(--ink); border-radius: 999px; padding: 7px 9px; font-size: 12px; font-weight: 850; }
+    .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 11px 12px; border: 1px solid var(--line); border-radius: 16px; background: #f8fbff; }
+    .metric strong { display: block; font-size: 23px; line-height: 1; }
     .metric span { color: var(--muted); font-size: 12px; font-weight: 750; }
     .severity.high strong { color: var(--red); }
     .severity.medium strong { color: var(--amber); }
     .severity.low strong { color: var(--mint); }
-    .map-panel { min-height: 670px; position: relative; overflow: hidden; border-color: rgba(11,47,102,.20); background: radial-gradient(circle at 45% 38%, rgba(29,95,174,.11), transparent 32%), linear-gradient(145deg, #ffffff, #edf4ff); }
+    .map-panel { min-height: 520px; position: relative; overflow: hidden; border-color: rgba(11,47,102,.20); background: radial-gradient(circle at 45% 38%, rgba(29,95,174,.11), transparent 32%), linear-gradient(145deg, #ffffff, #edf4ff); }
     .map-head { position: relative; z-index: 5; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; padding: 22px; }
-    .map-title h2 { font-size: clamp(28px, 4vw, 48px); margin: 0 0 6px; letter-spacing: -.055em; line-height: .96; }
+    .map-title h2 { font-size: clamp(24px, 3vw, 36px); margin: 0 0 6px; letter-spacing: -.045em; line-height: .98; }
     .map-title p { margin: 0; max-width: 620px; }
     .gate-box { min-width: 210px; padding: 14px; border-radius: 18px; border: 1px solid rgba(255,189,102,.34); background: rgba(255,189,102,.1); }
     .gate-box strong { display: block; color: var(--amber); }
     .map-canvas { position: absolute; inset: 0; overflow: hidden; background: #dfe8f4; }
     .geoqa-basemap { position: absolute; inset: 0; z-index: 1; }
     .geoqa-basemap .leaflet-control-attribution { font-size: 10px; color: #304a6f; }
+    .geoqa-basemap .leaflet-top.leaflet-left { top: 92px; }
     .geoqa-basemap .leaflet-tile-pane { filter: saturate(.82) contrast(1.02) brightness(1.03); }
     .geoqa-map-shade { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.76), rgba(255,255,255,.10) 28%, rgba(255,255,255,.10) 68%, rgba(255,255,255,.80)); }
-    .map-marker { position: absolute; border-radius: 50%; z-index: 3; pointer-events: none; }
-    .map-marker.cluster { width: 12px; height: 12px; left: 45%; top: 51%; background: var(--lime); box-shadow: 0 0 0 7px rgba(11,47,102,.16), 0 0 24px rgba(11,47,102,.28); }
-    .map-marker.outlier { right: 18%; top: 24%; width: 18px; height: 18px; background: var(--red); box-shadow: 0 0 0 10px rgba(178,59,59,.16), 0 0 0 24px rgba(178,59,59,.08), 0 0 42px rgba(178,59,59,.34); }
-    .callout { position: absolute; right: 6%; top: 26%; z-index: 4; max-width: 260px; padding: 13px 14px; border-radius: 18px; border: 1px solid rgba(178,59,59,.28); background: #fff5f5; color: var(--red); font-size: 12px; font-weight: 900; box-shadow: 0 16px 42px rgba(11,31,58,.12); }
-    .map-empty { position: absolute; z-index: 4; left: 22px; right: 22px; bottom: 22px; padding: 14px; border: 1px dashed rgba(11,47,102,.24); border-radius: 18px; background: rgba(255,255,255,.90); color: var(--muted); }
-    .evidence-strip { position: relative; z-index: 5; margin: 465px 22px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .callout { position: absolute; right: 6%; top: 26%; z-index: 4; max-width: 260px; padding: 13px 14px; border-radius: 18px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.92); color: var(--ink); font-size: 12px; font-weight: 900; box-shadow: 0 16px 42px rgba(11,31,58,.12); }
+    .callout.alert { border-color: rgba(178,59,59,.28); background: #fff5f5; color: var(--red); }
+    .map-empty { position: absolute; z-index: 4; left: 22px; right: 22px; bottom: 82px; padding: 14px; border: 1px dashed rgba(11,47,102,.24); border-radius: 18px; background: rgba(255,255,255,.90); color: var(--muted); }
+    .evidence-strip { position: absolute; z-index: 5; left: 22px; right: 22px; bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .decision-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: start; }
+    .decision-copy { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
     .score-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
-    .score-ring { width: 126px; height: 126px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--lime) 0deg 256deg, rgba(255,255,255,.1) 256deg); box-shadow: 0 0 36px rgba(200,255,116,.16); }
-    .score-ring span { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: white; font-size: 30px; font-weight: 950; color: var(--ink); }
-    .status-grid { display: grid; gap: 7px; margin-top: 14px; }
-    .status { display: grid; grid-template-columns: 110px 1fr; gap: 8px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 8px; }
+    .score-ring { width: 92px; height: 92px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--lime) var(--score-deg, 0deg), #e8eef7 0); }
+    .score-ring span { display: grid; place-items: center; width: 66px; height: 66px; border-radius: 50%; background: white; font-size: 25px; font-weight: 950; color: var(--ink); }
+    .status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+    .status { display: grid; gap: 4px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 9px; }
     .label { color: var(--muted); font-weight: 800; }
     .value { font-weight: 850; overflow-wrap: anywhere; }
     .package-list, .recent { display: grid; gap: 8px; }
     .package-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 11px; border: 1px solid var(--line); border-radius: 16px; background: #f8fbff; }
-    .package-row a { color: var(--lime); font-weight: 950; text-decoration: none; }
+    .artifact-download { appearance: none; border: 0; padding: 0; background: transparent; color: var(--lime); font-weight: 950; text-decoration: none; cursor: pointer; text-align: left; }
+    .artifact-download:hover, .artifact-download:focus-visible { text-decoration: underline; }
     .status-note { font-size: 12px; font-weight: 850; color: var(--muted); }
     .status-note.ready { color: var(--mint); }
-    .review-box { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+    .review-box { margin-top: 12px; }
     .review-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .recent { max-height: 260px; overflow: auto; }
+    [hidden] { display: none !important; }
+    .recent { max-height: 480px; overflow: auto; }
     .recent button { padding: 7px 10px; }
     details { margin-top: 12px; }
     summary { cursor: pointer; color: var(--lime); font-weight: 950; }
-    .secondary-links a { display: inline-block; margin: 6px 7px 0 0; color: var(--mint); font-weight: 850; text-decoration: none; }
-    .triage { overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; color: #304a6f; background: #eef4fc; padding: 10px; border-bottom: 1px solid var(--line); }
-    td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+    .secondary-links .artifact-download { display: inline-block; margin: 6px 12px 0 0; color: var(--mint); font-weight: 850; }
+    .geoqa-basemap .leaflet-control-layers { border: 1px solid rgba(11,47,102,.18); border-radius: 12px; box-shadow: 0 8px 24px rgba(11,31,58,.14); color: var(--ink); }
+    .triage-list { display: grid; gap: 10px; }
+    .triage-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 16px; background: #f8fbff; }
+    .triage-item p { margin: 4px 0 0; font-size: 13px; }
+    .triage-action { color: var(--ink); font-weight: 750; }
     .severity-label { font-weight: 950; color: var(--mint); }
     .severity-label.high { color: var(--red); } .severity-label.medium { color: var(--amber); }
-    .timeline { display: grid; gap: 8px; }
-    .timeline-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
-    .download-row { display: grid; grid-template-columns: 1fr; gap: 10px; }
-    .download-card { border: 1px solid var(--line-strong); border-radius: 18px; padding: 13px; background: linear-gradient(135deg, rgba(200,255,116,.13), rgba(103,232,195,.06)); }
+    .handoff-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .8fr); gap: 16px; align-items: start; }
+    .empty-state { padding: 13px; border: 1px solid var(--line); border-radius: 16px; background: #f8fbff; }
+    .empty-state p { margin: 0; }
+    .advanced-fields { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
     .raw { display: none; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; padding: 12px; background: #06152a; color: #f8fbff; border-radius: 10px; }
     .mobile-note { display: none; }
-    @media (max-width: 1220px) { .lab-grid { grid-template-columns: 1fr; } .left-rail, .right-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } .map-panel { min-height: 620px; } }
-    @media (max-width: 760px) { .shell { width: min(100% - 18px, 1440px); padding-top: 12px; } .topbar, .brand, .form-grid, .left-rail, .right-rail, .download-row { grid-template-columns: 1fr; } .top-actions, .command { justify-content: flex-start; } .wide { grid-column: auto; } .map-head, .score-card { grid-template-columns: 1fr; } .gate-box { min-width: 0; } .map-panel { min-height: 700px; } .evidence-strip { margin-top: 500px; } h1 { font-size: 42px; } }
+    @media (max-width: 980px) { .lab-grid { grid-template-columns: 1fr; } .main-stage { order: 1; } .left-rail { order: 2; position: static; } .handoff-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 760px) { .shell { width: min(100% - 18px, 1320px); padding-top: 12px; } .topbar, .brand, .form-grid, .decision-head, .decision-copy, .status-grid { grid-template-columns: 1fr; } .top-actions { justify-content: flex-start; } .wide { grid-column: auto; } .map-head, .score-card { grid-template-columns: 1fr; } .gate-box { min-width: 0; } .map-panel { min-height: 520px; } .evidence-strip { left: 14px; right: 14px; bottom: 14px; } h1 { font-size: 38px; } .panel-body { padding: 16px; } }
   </style>
 </head>
 <body>
@@ -474,83 +480,72 @@ def _landing_page_html() -> str:
       <div class="brand">
         <div class="mark">GQ</div>
         <div>
-          <div class="kicker">Approved Design 3 · Evidence Package Console</div>
+          <div class="kicker">GeoQA · Data readiness</div>
           <h1>Spatial Evidence Lab</h1>
-          <p class="subtitle">GeoQA Data Readiness Audit for upload, spatial anomaly review, readiness gating, and customer handoff.</p>
-          <div class="command">
-            <span class="pill" id="topRunStatus">No active run</span>
-            <span class="pill hot">Pipeline gate: 85</span>
-            <span class="pill lime">Map-first QA evidence</span>
-            <span class="pill">Worker async</span>
-          </div>
+          <p class="subtitle">Upload a dataset, review the evidence, and approve the customer report.</p>
         </div>
       </div>
       <div class="top-actions">
-        <span class="pill">API __API_STATUS__</span>
-        <span class="pill">Storage __STORAGE_STATUS__</span>
-        <button id="newRunButton">New run</button>
-        <button id="refreshRun" class="secondary" disabled>Refresh status</button>
+        <span class="pill" id="topRunStatus">No active run</span>
+        <button id="newRunButton" aria-controls="newRunPanel" aria-expanded="false">New audit</button>
+        <button id="refreshRun" class="secondary" disabled>Refresh</button>
       </div>
     </header>
 
     <section id="newRunPanel" class="panel new-run">
       <div class="panel-body">
-        <h2>New run</h2>
-        <p class="subtitle">Compact intake drawer. Upload GeoJSON, GeoPackage, or zipped shapefile. Max upload: __MAX_UPLOAD__ MB. Upload mode: __UPLOAD_MODE__.</p>
+        <h2>Start a new QA run</h2>
+        <p class="subtitle">Upload GeoJSON, GeoPackage, or a zipped shapefile up to __MAX_UPLOAD__ MB.</p>
         <div class="form-grid">
-          <div><label for="apiKey">API key, if configured</label><input id="apiKey" type="password" placeholder="Paste x-api-key for protected deployments" /></div>
-          <div class="wide"><label for="dataset">Dataset file</label><input id="dataset" type="file" accept=".geojson,.gpkg,.zip,application/zip" /></div>
+          <div class="full"><label for="dataset">Dataset file</label><input id="dataset" type="file" accept=".geojson,.gpkg,.zip,application/zip" /></div>
           <div><label for="customerName">Customer / organization</label><input id="customerName" type="text" placeholder="City GIS Team" /></div>
           <div><label for="businessOwner">Business owner</label><input id="businessOwner" type="text" placeholder="GIS manager" /></div>
           <div><label for="customerDatasetName">Business dataset name</label><input id="customerDatasetName" type="text" placeholder="Road centreline intersections" /></div>
           <div><label for="intendedUse">Intended downstream use</label><select id="intendedUse"><option value="">General QA / not specified</option><option value="sql_load">SQL/database loading</option><option value="dashboard">Dashboard or reporting</option><option value="migration">GIS or asset-system migration</option><option value="routing">Routing or network analysis</option><option value="asset_handoff">Asset handoff</option><option value="spatial_join">Spatial joins or enrichment</option><option value="other">Other downstream use</option></select></div>
-          <div><label for="requiredColumns">Required columns, optional</label><input id="requiredColumns" type="text" placeholder="asset_id, road_name" /></div>
-          <div><label for="targetCrs">Target CRS / SRID</label><input id="targetCrs" type="text" list="crsPresets" placeholder="Keep source CRS, or enter EPSG:4326 / 3857" /><datalist id="crsPresets"><option value="EPSG:4326">WGS 84 longitude/latitude</option><option value="EPSG:3857">Web Mercator</option><option value="4326">SRID 4326</option><option value="3857">SRID 3857</option></datalist></div>
-          <div class="wide"><label for="decisionContext">Decision context</label><input id="decisionContext" type="text" placeholder="Approve SQL load before migration" /></div>
-          <div class="full"><label for="customerNotes">Customer notes</label><textarea id="customerNotes" placeholder="What decision should this audit support?"></textarea></div>
+          <div class="full"><label for="decisionContext">Decision this audit should support</label><input id="decisionContext" type="text" placeholder="Approve SQL load before migration" /></div>
+          <details class="full advanced-fields"><summary>Advanced QA requirements</summary><div class="form-grid">
+            <div><label for="requiredColumns">Required columns</label><input id="requiredColumns" type="text" placeholder="asset_id, road_name" /></div>
+            <div><label for="targetCrs">Target CRS / SRID</label><input id="targetCrs" type="text" list="crsPresets" placeholder="Keep source CRS, or enter EPSG:4326 / 3857" /><datalist id="crsPresets"><option value="EPSG:4326">WGS 84 longitude/latitude</option><option value="EPSG:3857">Web Mercator</option><option value="4326">SRID 4326</option><option value="3857">SRID 3857</option></datalist></div>
+            <div class="full"><label for="customerNotes">Additional notes</label><textarea id="customerNotes" placeholder="Add any constraints or handoff requirements."></textarea></div>
+          </div></details>
+          <details class="full advanced-fields"><summary>Connection settings</summary><p class="subtitle">API __API_STATUS__ · Storage __STORAGE_STATUS__ · __UPLOAD_MODE__</p><label for="apiKey">API key, if required</label><input id="apiKey" type="password" placeholder="Paste the deployment API key" /></details>
         </div>
-        <div class="review-actions"><button id="submitRun">Upload and queue QA</button><button id="closeNewRun" class="ghost">Close</button></div>
-        <div id="message" class="message"></div>
+        <div class="review-actions"><button id="submitRun">Start QA run</button><button id="closeNewRun" class="ghost">Close</button></div>
       </div>
     </section>
+    <div id="message" class="message global-message" role="status" aria-live="polite"></div>
 
     <section class="lab-grid">
       <aside class="left-rail">
         <section class="panel"><div class="panel-body">
-          <h2>Mission controls</h2>
-          <div class="filter-row"><span class="filter-chip active">All findings</span><span class="filter-chip">High risk</span><span class="filter-chip">Geometry</span><span class="filter-chip">Schema</span><span class="filter-chip">Spatial anomalies</span></div>
-          <div class="metric-stack" style="margin-top: 12px;"><div class="metric severity high"><strong id="issueHigh">-</strong><span>High findings</span></div><div class="metric severity medium"><strong id="issueMedium">-</strong><span>Medium findings</span></div><div class="metric severity low"><strong id="issueLow">-</strong><span>Low findings</span></div></div>
-        </div></section>
-        <section class="panel"><div class="panel-body">
-          <h2>Run index</h2>
-          <div id="recentRuns" class="recent"><p class="subtitle">Recent production runs load after page startup.</p></div>
+          <h2>Recent runs</h2>
+          <div id="recentRuns" class="recent"><p class="subtitle">Your latest QA runs will appear here.</p></div>
         </div></section>
       </aside>
 
       <section class="main-stage">
+        <section class="panel"><div class="panel-body decision">
+          <div class="decision-head">
+            <div class="decision-copy"><div id="scoreRing" class="score-ring"><span id="readinessScore">--</span></div><div><h2 id="readinessBand">Waiting for run</h2><p id="decisionText">Start a new audit or open a recent run to review readiness.</p></div></div>
+            <div class="gate-box"><strong id="gateLabel">Readiness pending</strong><span class="status-note">Approval threshold: 85</span></div>
+          </div>
+          <div class="metric-row" style="margin-top: 16px;"><div class="metric severity high"><strong id="issueHigh">-</strong><span>High findings</span></div><div class="metric severity medium"><strong id="issueMedium">-</strong><span>Medium findings</span></div><div class="metric severity low"><strong id="issueLow">-</strong><span>Low findings</span></div></div>
+          <div class="status-grid"><div class="status"><span class="label">Dataset</span><span id="currentFilename" class="value">-</span></div><div class="status"><span class="label">Run status</span><span id="runStatus" class="value">Waiting</span></div><div class="status"><span class="label">Run ID</span><span id="runId" class="value">Not started</span></div></div>
+        </div></section>
         <section class="panel map-panel" aria-label="Spatial evidence">
           <div class="map-head">
-            <div class="map-title"><h2>Spatial evidence</h2><p>The approved Design 3 view puts the map/anomaly evidence first: geometry type, CRS, feature count, cluster context, and outlier signals before the paperwork.</p></div>
-            <div class="gate-box"><strong id="gateLabel">Pipeline gate pending</strong><span class="status-note">Use `--fail-below` before ETL or ingestion.</span></div>
+            <div class="map-title"><h2>Spatial evidence</h2><p>Confirm geometry, CRS, feature count, and spatial anomalies before handoff.</p></div>
           </div>
-          <div class="map-canvas" id="mapPanel"><div id="geoqaMap" class="geoqa-basemap" aria-label="Interactive basemap"></div><div class="geoqa-map-shade"></div><div class="map-marker cluster"></div><div class="map-marker outlier"></div><div class="callout" id="anomalyCallout">Evidence preview appears after QA completes.</div><div class="map-empty" id="mapEmpty">Spatial evidence uses an actual basemap. GeoQA fits to dataset bounds when QA metadata includes total bounds.</div></div>
+          <div class="map-canvas" id="mapPanel"><div id="geoqaMap" class="geoqa-basemap" aria-label="Interactive basemap"></div><div class="geoqa-map-shade"></div><div class="callout" id="anomalyCallout">Evidence preview appears after QA completes.</div><div class="map-empty" id="mapEmpty">Spatial evidence uses an actual basemap. GeoQA fits to dataset bounds when QA metadata includes total bounds.</div></div>
           <div class="evidence-strip" id="evidenceChips"><span class="chip">No evidence loaded</span></div>
         </section>
-        <section class="panel triage"><div class="panel-body"><h2>Issue triage</h2><table><thead><tr><th>Severity</th><th>Finding</th><th>Affected record/column</th><th>Why it matters</th><th>Suggested action</th></tr></thead><tbody id="triageBody"><tr><td colspan="5">Issue triage appears after QA completes. Use Issues CSV for record-level detail.</td></tr></tbody></table></div></section>
-        <section class="panel"><div class="panel-body"><h2>Comparison delta</h2><div class="timeline"><div class="timeline-row"><span>Previous</span><span>Readiness comparison appears after prior runs are selected.</span><strong>--</strong></div><div class="timeline-row"><span>Current</span><span id="comparisonDelta">Awaiting completed run.</span><strong id="comparisonScore">--</strong></div></div></div></section>
-      </section>
-
-      <aside class="right-rail">
-        <section class="panel"><div class="panel-body decision">
-          <h2>Readiness decision</h2>
-          <div class="score-card"><div class="score-ring"><span id="readinessScore">--</span></div><div><strong id="readinessBand">Waiting for run</strong><p id="decisionText">Upload a dataset or open a recent run to review readiness evidence.</p></div></div>
-          <div class="status-grid"><div class="status"><span class="label">Run ID</span><span id="runId" class="value">Not started</span></div><div class="status"><span class="label">Status</span><span id="runStatus" class="value">Waiting</span></div><div class="status"><span class="label">Current run</span><span id="currentFilename" class="value">-</span></div></div>
-        </div></section>
-        <section class="panel"><div class="panel-body"><h2>Revenue package</h2><p class="subtitle">The final customer report is released only after human approval.</p><div id="primaryArtifacts" class="package-list"></div><div class="download-row" style="margin-top: 12px;"><div class="download-card"><strong>Final customer report</strong><p class="subtitle">Approval-gated PDF.</p></div><div class="download-card"><strong>Issues CSV</strong><p class="subtitle">Record-level evidence.</p></div><div class="download-card"><strong>Handoff bundle</strong><p class="subtitle">Package ZIP.</p></div></div><details><summary>Secondary artifacts</summary><div id="secondaryArtifacts" class="secondary-links"></div></details></div></section>
-        <section class="panel"><div class="panel-body"><h2>Reviewer approval</h2><div class="review-box"><label for="reviewerName">Reviewer name</label><input id="reviewerName" type="text" placeholder="QA Reviewer" /><label for="reviewNotes">Review notes</label><textarea id="reviewNotes" placeholder="Approval, rejection, or customer handoff notes"></textarea><div class="review-actions"><button id="approvePackage">Approve package</button><button id="rejectPackage" class="danger">Reject</button></div><p id="reviewStatus" class="subtitle">Review gate is available after a reviewable draft exists.</p></div></div></section>
-        <section class="panel light"><div class="panel-body" id="reportPreview"><h2>Customer report preview</h2><p>Run GeoQA to generate the buyer-facing readiness narrative, geometry profile, spatial anomaly summary, and recommended next actions.</p></div></section>
+        <section class="panel triage"><div class="panel-body"><h2>Findings to review</h2><div id="triageBody" class="triage-list"><div class="empty-state"><p>Findings will appear after QA completes. Use Issues CSV for record-level evidence.</p></div></div></div></section>
+        <section class="handoff-grid">
+          <section class="panel"><div class="panel-body"><h2>Downloads</h2><p class="subtitle">Customer-ready files appear here as each gate is completed.</p><div id="primaryArtifacts" class="package-list" style="margin-top: 12px;"></div><details><summary>More evidence files</summary><div id="secondaryArtifacts" class="secondary-links"></div></details></div></section>
+          <section class="panel"><div class="panel-body"><h2>Customer report approval</h2><div class="empty-state"><p id="reviewStatus" class="subtitle" role="status">Approval becomes available when a cited agent draft is ready.</p></div><div id="reviewForm" class="review-box" hidden><label for="reviewerName">Reviewer name</label><input id="reviewerName" type="text" placeholder="QA Reviewer" /><label for="reviewNotes">Review notes</label><textarea id="reviewNotes" placeholder="Approval, rejection, or customer handoff notes"></textarea><div class="review-actions"><button id="approvePackage">Approve report</button><button id="rejectPackage" class="danger">Reject draft</button></div></div></div></section>
+        </section>
         <pre id="raw" class="raw"></pre>
-      </aside>
+      </section>
     </section>
   </main>
   <script>
@@ -560,7 +555,9 @@ def _landing_page_html() -> str:
     let pollTimer = null;
     let geoqaMap = null;
     let geoqaBoundsLayer = null;
-    let geoqaPreviewLayer = null;
+    let geoqaSampleLayer = null;
+    let geoqaOutlierLayer = null;
+    let geoqaLayerControl = null;
     const $ = (id) => document.getElementById(id);
     const primaryArtifactOrder = ["final_customer_report_pdf", "issues_csv", "handoff_bundle"];
     const secondaryArtifactOrder = ["qa_report", "summary", "run_record", "geometry_profile", "map_preview", "customer_report", "customer_report_pdf", "customer_intake", "review_status", "review_history", "agent_report_draft", "agent_report", "final_customer_report", "agent_report_json", "agent_session", "agent_trace", "report_consistency", "hallucination_check", "fix_plan", "fix_plan_json", "bundle_manifest"];
@@ -569,6 +566,7 @@ def _landing_page_html() -> str:
     function setMessage(text, isError = false) { $("message").textContent = text; $("message").className = "message" + (isError ? " error" : ""); }
     async function readJson(response) { const payload = await response.json(); if (!response.ok) { const error = payload.error || {}; throw new Error(error.message || "Request failed"); } return payload; }
     function titleCase(value) { return String(value || "").replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+    function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]); }
     function initBasemap() {
       if (geoqaMap || !window.L || !$('geoqaMap')) return;
       geoqaMap = L.map('geoqaMap', { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView([39.5, -98.35], 4);
@@ -603,26 +601,39 @@ def _landing_page_html() -> str:
     function renderMapPreview(geojson) {
       initBasemap();
       if (!geoqaMap || !window.L || !geojson || !Array.isArray(geojson.features)) return;
-      if (geoqaPreviewLayer) { geoqaPreviewLayer.remove(); geoqaPreviewLayer = null; }
-      geoqaPreviewLayer = L.geoJSON(geojson, {
-        style: (feature) => {
-          const outlier = feature.properties && feature.properties.is_spatial_outlier;
-          return { color: outlier ? "#b23b3b" : "#0b2f66", weight: outlier ? 4 : 2, opacity: .9, fillColor: outlier ? "#b23b3b" : "#1d5fae", fillOpacity: outlier ? .22 : .10 };
-        },
-        pointToLayer: (feature, latlng) => {
-          const outlier = feature.properties && feature.properties.is_spatial_outlier;
-          return L.circleMarker(latlng, { radius: outlier ? 8 : 5, color: outlier ? "#b23b3b" : "#0b2f66", weight: 2, fillColor: outlier ? "#b23b3b" : "#1d5fae", fillOpacity: outlier ? .85 : .55 });
-        },
+      if (geoqaSampleLayer) { geoqaSampleLayer.remove(); geoqaSampleLayer = null; }
+      if (geoqaOutlierLayer) { geoqaOutlierLayer.remove(); geoqaOutlierLayer = null; }
+      if (geoqaLayerControl) { geoqaLayerControl.remove(); geoqaLayerControl = null; }
+
+      const sampleFeatures = geojson.features.filter((feature) => !(feature.properties || {}).is_spatial_outlier);
+      const outlierFeatures = geojson.features.filter((feature) => Boolean((feature.properties || {}).is_spatial_outlier));
+      const buildLayer = (features, outlier) => L.geoJSON({ type: "FeatureCollection", features }, {
+        style: () => ({ color: outlier ? "#b23b3b" : "#0b2f66", weight: outlier ? 4 : 2, opacity: .9, fillColor: outlier ? "#b23b3b" : "#1d5fae", fillOpacity: outlier ? .22 : .10 }),
+        pointToLayer: (_, latlng) => L.circleMarker(latlng, { radius: outlier ? 8 : 5, color: outlier ? "#b23b3b" : "#0b2f66", weight: 2, fillColor: outlier ? "#b23b3b" : "#1d5fae", fillOpacity: outlier ? .85 : .55 }),
         onEachFeature: (feature, layer) => {
           const props = feature.properties || {};
-          layer.bindPopup(`<strong>${props.preview_role === "spatial_outlier" ? "Spatial outlier" : "Sample feature"}</strong><br>Feature: ${props.feature_id ?? "unknown"}<br>Geometry: ${props.geometry_type ?? "unknown"}`);
+          const role = props.preview_role === "spatial_outlier" ? "Spatial outlier" : "Dataset sample";
+          layer.bindPopup(`<strong>${escapeHtml(role)}</strong><br>Record ID: ${escapeHtml(props.feature_id ?? "unknown")}<br>Geometry type: ${escapeHtml(props.geometry_type ?? "unknown")}<br>Evidence role: ${escapeHtml(props.preview_role ?? "sample")}`);
         }
-      }).addTo(geoqaMap);
-      const count = geojson.features.length;
+      });
+      geoqaSampleLayer = buildLayer(sampleFeatures, false).addTo(geoqaMap);
+      geoqaOutlierLayer = buildLayer(outlierFeatures, true).addTo(geoqaMap);
+      geoqaLayerControl = L.control.layers(
+        {},
+        {
+          [`Dataset sample (${sampleFeatures.length})`]: geoqaSampleLayer,
+          [`Spatial outliers (${outlierFeatures.length})`]: geoqaOutlierLayer
+        },
+        { collapsed: false }
+      ).addTo(geoqaMap);
+
+      const previewGroup = L.featureGroup([geoqaSampleLayer, geoqaOutlierLayer]);
+      const count = sampleFeatures.length + outlierFeatures.length;
       const meta = geojson.metadata || {};
       if (count) {
-        geoqaMap.fitBounds(geoqaPreviewLayer.getBounds(), { padding: [34, 34], maxZoom: 14 });
-        $("mapEmpty").textContent = `${count} preview feature${count === 1 ? "" : "s"} drawn on the basemap${meta.sampled ? " (sampled for browser performance)" : ""}.`;
+        geoqaMap.fitBounds(previewGroup.getBounds(), { padding: [34, 34], maxZoom: 14 });
+        const total = Number(meta.feature_count ?? count);
+        $("mapEmpty").textContent = `${sampleFeatures.length} sampled record${sampleFeatures.length === 1 ? "" : "s"} of ${total}; ${outlierFeatures.length} spatial outlier${outlierFeatures.length === 1 ? "" : "s"} preserved${meta.sampled ? " for browser performance" : ""}.`;
       }
       setTimeout(() => geoqaMap.invalidateSize(), 80);
     }
@@ -637,18 +648,50 @@ def _landing_page_html() -> str:
         // The basemap and bounds fallback remain usable if preview fetch fails.
       }
     }
+    async function downloadArtifact(name) {
+      const artifact = currentArtifacts[name] || {};
+      if (!artifact.exists || !artifact.url) return;
+      try {
+        setMessage(`Downloading ${artifactLabels[name] || name}...`);
+        const response = await fetch(artifact.url, { headers: headers() });
+        if (!response.ok) {
+          let message = "Artifact download failed.";
+          try { message = (await response.json()).error?.message || message; } catch (_) {}
+          throw new Error(message);
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match ? match[1] : (artifact.filename || name);
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+        setMessage(`${artifactLabels[name] || name} downloaded.`);
+      } catch (error) {
+        setMessage(error.message || "Artifact download failed.", true);
+      }
+    }
     function renderPackageRows() {
       $("primaryArtifacts").innerHTML = primaryArtifactOrder.map((name) => {
         const artifact = currentArtifacts[name] || {};
         const label = artifactLabels[name] || name;
-        if (artifact.exists && artifact.url) return `<div class="package-row"><a href="${artifact.url}" target="_blank" rel="noopener">${label}</a><span class="status-note ready">Ready</span></div>`;
-        const pendingLabel = name === "final_customer_report_pdf" ? "Awaiting approval" : (name === "handoff_bundle" ? "Not generated yet" : "Pending");
+        if (artifact.exists && artifact.url) return `<div class="package-row"><button class="artifact-download" type="button" onclick="downloadArtifact('${name}')">${label}</button><span class="status-note ready">Ready</span></div>`;
+        let pendingLabel = name === "final_customer_report_pdf" ? "Awaiting approval" : "Pending";
+        if (name === "handoff_bundle") {
+          const packageStatus = currentRunPayload?.package_status || "not_requested";
+          pendingLabel = packageStatus === "queued" || packageStatus === "building" ? "Packaging" : (packageStatus === "failed" ? "Packaging failed" : "Awaiting approval");
+        }
         return `<div class="package-row"><span>${label}</span><span class="status-note">${pendingLabel}</span></div>`;
       }).join("");
       $("secondaryArtifacts").innerHTML = secondaryArtifactOrder.map((name) => {
         const artifact = currentArtifacts[name] || {};
         if (!artifact.exists || !artifact.url) return "";
-        return `<a href="${artifact.url}" target="_blank" rel="noopener">${artifactLabels[name] || name}</a>`;
+        return `<button class="artifact-download" type="button" onclick="downloadArtifact('${name}')">${artifactLabels[name] || name}</button>`;
       }).join("") || "<p class='subtitle'>Secondary artifacts appear after QA completes.</p>";
     }
     function renderEvidence(payload) {
@@ -661,19 +704,13 @@ def _landing_page_html() -> str:
       const anomalyCount = anomalies.count ?? 0;
       $("evidenceChips").innerHTML = [`<span class="chip">${geometry}</span>`, `<span class="chip">${crs}</span>`, `<span class="chip">${featureCount} features</span>`, `<span class="chip">${anomalyCount} spatial anomalies</span>`, `<span class="chip">SQL Server risk review</span>`].join("");
       $("anomalyCallout").textContent = payload.status === "completed" ? (anomalyCount ? `Spatial anomaly: ${anomalyCount} flagged` : "No strong spatial outliers detected") : "Evidence preview appears after QA completes.";
+      $("anomalyCallout").classList.toggle("alert", payload.status === "completed" && anomalyCount > 0);
       $("mapEmpty").textContent = payload.status === "completed" ? `Spatial evidence: ${geometry}, ${crs}. Basemap fits to dataset bounds when coordinates are in EPSG:4326.` : "Evidence preview appears after QA completes.";
       updateBasemap(profile);
     }
-    function renderReportPreview(payload) {
-      const band = titleCase(payload.readiness_band || "Pending");
-      const score = payload.readiness_score ?? "--";
-      const filename = payload.filename || "No dataset selected";
-      const profile = payload.geometry_profile || {};
-      const anomalies = payload.spatial_anomalies || {};
-      $("reportPreview").innerHTML = `<h2>Customer report preview</h2><p><strong>${filename}</strong></p><div class="filter-row"><span class="chip">${score}/100</span><span class="chip">${band}</span><span class="chip">${profile.primary_geometry_label || "Geometry pending"}</span><span class="chip">${anomalies.count ?? 0} spatial outliers</span></div><p style="margin-top: 12px;">${decisionFor(payload)}</p>`;
-    }
     function decisionFor(payload) {
-      if (payload.status !== "completed") return "Run deterministic QA to produce an evidence-backed readiness decision before ETL, dashboarding, SQL loading, or handoff.";
+      if (payload.status === "queued" || payload.status === "running") return "QA is processing. Evidence and downloads will appear here when the run completes.";
+      if (payload.status !== "completed") return "Start a new audit or open a recent run to review readiness.";
       const band = payload.readiness_band || "needs_review";
       const anomalies = payload.spatial_anomalies || {};
       if (band === "ready") return "Ready for review before handoff. Keep the QA artifacts with the downstream package.";
@@ -681,24 +718,29 @@ def _landing_page_html() -> str:
       return "Review duplicate geometry, schema, and compatibility findings before loading or handoff.";
     }
     function renderTriage(payload) {
-      if (payload.status !== "completed") { $("triageBody").innerHTML = `<tr><td colspan="5">Issue triage appears after QA completes. Use Issues CSV for record-level detail.</td></tr>`; return; }
+      if (payload.status !== "completed") { $("triageBody").innerHTML = `<div class="empty-state"><p>Findings will appear after QA completes. Use Issues CSV for record-level evidence.</p></div>`; return; }
       const counts = payload.issue_counts || {};
       const anomalies = payload.spatial_anomalies || {};
       const rows = [];
-      if ((counts.high || 0) > 0) rows.push(["high", "High-severity QA findings", `${counts.high} finding(s)`, "High-severity records can block loading, joins, or trusted reporting.", "Open Issues CSV and resolve or approve each high finding."]);
-      if ((counts.medium || 0) > 0) rows.push(["medium", "Medium-severity QA findings", `${counts.medium} finding(s)`, "Medium findings may create downstream review or cleanup work.", "Review before migration, reporting, or handoff."]);
-      if ((anomalies.count || 0) > 0) rows.push(["medium", "Spatial outlier", `${anomalies.count} feature(s)`, "A feature far from the main cluster can break spatial joins, maps, or summaries.", "Confirm whether the outlier belongs in this dataset."]);
+      if ((counts.high || 0) > 0) rows.push(["high", "Action required", `${counts.high} finding(s)`, "These records can block loading, joins, or trusted reporting.", "Open Issues CSV and resolve or approve each high finding."]);
+      if ((counts.medium || 0) > 0) rows.push(["medium", "Review recommended", `${counts.medium} finding(s)`, "These findings may create downstream review or cleanup work.", "Review before migration, reporting, or handoff."]);
+      if ((anomalies.count || 0) > 0) rows.push(["medium", "Spatial location check", `${anomalies.count} feature(s)`, "A feature far from the main cluster can break spatial joins, maps, or summaries.", "Confirm whether the location belongs in this dataset."]);
       if (!rows.length) rows.push(["low", "No blocking summary findings", "Dataset summary", "The summary-level view did not identify a blocking issue.", "Download Issues CSV for record-level evidence."]);
-      $("triageBody").innerHTML = rows.map((row) => `<tr><td class="severity-label ${row[0]}">${titleCase(row[0])}</td><td>${row[1]}</td><td>${row[2]}</td><td>${row[3]}</td><td>${row[4]}</td></tr>`).join("");
+      $("triageBody").innerHTML = rows.map((row) => `<article class="triage-item"><span class="severity-label ${row[0]}">${titleCase(row[0])}</span><div><strong>${row[1]} · ${row[2]}</strong><p>${row[3]}</p><p class="triage-action">Next: ${row[4]}</p></div></article>`).join("");
     }
     function renderReview(payload) {
       const status = payload.review_status || {};
       const reviewable = payload.status === "completed" && status && ["draft_ready", "rejected", "approved"].includes(status.status);
       if (status.status === "draft_ready") $("reviewStatus").textContent = "Cited agent draft ready. Human approval is required before the final customer report is released.";
-      else if (status.status === "approved") $("reviewStatus").textContent = `Approved${status.reviewer_name ? ` by ${status.reviewer_name}` : ""}. Final customer report released.`;
+      else if (status.status === "approved") {
+        const packageStatus = payload.package_status || "not_requested";
+        const packageNote = packageStatus === "ready" ? "Customer package is ready." : (packageStatus === "failed" ? "Package generation needs operator attention." : "Customer package is being prepared.");
+        $("reviewStatus").textContent = `Approved${status.reviewer_name ? ` by ${status.reviewer_name}` : ""}. Final customer report released. ${packageNote}`;
+      }
       else if (status.status === "blocked") $("reviewStatus").textContent = "Agent draft blocked by grounding or consistency checks.";
       else if (status.status === "rejected") $("reviewStatus").textContent = "Draft rejected. Review notes are preserved in the audit history.";
       else $("reviewStatus").textContent = "Review is available when a cited agent draft exists for a completed run.";
+      $("reviewForm").hidden = !reviewable || status.status === "approved";
       $("approvePackage").disabled = !reviewable || status.status === "approved";
       $("rejectPackage").disabled = !reviewable;
     }
@@ -708,17 +750,17 @@ def _landing_page_html() -> str:
       currentRunId = payload.run_id || currentRunId;
       const counts = payload.issue_counts || {};
       $("runId").textContent = currentRunId || "Not started";
-      $("runStatus").textContent = payload.status || "Waiting";
-      $("topRunStatus").textContent = payload.status ? `Run ${payload.status}` : "No active run";
+      $("runStatus").textContent = titleCase(payload.status || "Waiting");
+      $("topRunStatus").textContent = payload.status ? titleCase(payload.status) : "No active run";
       $("currentFilename").textContent = payload.filename || "-";
       $("readinessScore").textContent = payload.readiness_score ?? "--";
+      const scoreDegrees = Math.max(0, Math.min(100, Number(payload.readiness_score) || 0)) * 3.6;
+      $("scoreRing").style.setProperty("--score-deg", `${scoreDegrees}deg`);
       $("readinessBand").textContent = titleCase(payload.readiness_band || "Waiting for run");
       $("decisionText").textContent = decisionFor(payload);
       $("issueHigh").textContent = counts.high ?? "-"; $("issueMedium").textContent = counts.medium ?? "-"; $("issueLow").textContent = counts.low ?? "-";
-      $("gateLabel").textContent = payload.status === "completed" ? `${payload.readiness_score ?? "--"}/100 readiness evidence` : "Pipeline gate pending";
-      $("comparisonDelta").textContent = payload.status === "completed" ? "Current run is ready for comparison against a prior dataset version." : "Awaiting completed run.";
-      $("comparisonScore").textContent = payload.readiness_score ?? "--";
-      renderEvidence(payload); renderReportPreview(payload); renderTriage(payload); renderReview(payload);
+      $("gateLabel").textContent = payload.status === "completed" ? `${payload.readiness_score ?? "--"}/100 readiness` : "Readiness pending";
+      renderEvidence(payload); renderTriage(payload); renderReview(payload); renderPackageRows();
     }
     async function loadArtifacts(runId) {
       const response = await fetch(`/api/v1/runs/${runId}/artifacts`, { headers: headers() });
@@ -729,7 +771,7 @@ def _landing_page_html() -> str:
       const response = await fetch("/api/v1/runs?limit=5", { headers: headers() }); if (!response.ok) return;
       const payload = await response.json(); const rows = payload.runs || [];
       if (!rows.length) { $("recentRuns").innerHTML = "<p class='subtitle'>No production runs yet.</p>"; return; }
-      $("recentRuns").innerHTML = rows.map((run) => `<div class="package-row"><span><strong>${run.filename || run.run_id}</strong><br><span class="status-note">${run.status} / ${run.readiness_band || "pending"}</span></span><button class="secondary" onclick="openRun('${run.run_id}')">Open</button></div>`).join("");
+      $("recentRuns").innerHTML = rows.map((run) => `<div class="package-row"><span><strong>${run.filename || run.run_id}</strong><br><span class="status-note">${titleCase(run.status)} · ${titleCase(run.readiness_band || "pending")}</span></span><button class="secondary" onclick="openRun('${run.run_id}')">View</button></div>`).join("");
     }
     async function openRun(runId) { currentRunId = runId; $("refreshRun").disabled = false; await refreshRun(); }
     async function uploadDatasetFile(file) {
@@ -755,7 +797,17 @@ def _landing_page_html() -> str:
     async function refreshRun() {
       if (!currentRunId) return;
       const response = await fetch(`/api/v1/runs/${currentRunId}`, { headers: headers() }); const payload = await readJson(response); renderRun(payload);
-      if (payload.status === "completed") { clearInterval(pollTimer); await loadArtifacts(currentRunId); setMessage(payload.review_status?.status === "draft_ready" ? "QA completed. Cited agent draft is ready for human review." : "QA completed. Deterministic evidence artifacts are ready."); }
+      if (payload.status === "completed") {
+        await loadArtifacts(currentRunId);
+        if (["queued", "building"].includes(payload.package_status)) {
+          setMessage(payload.package_status === "building" ? "Approved package is being built by the worker." : "Approved package is queued for the worker.");
+        } else {
+          clearInterval(pollTimer);
+          if (payload.package_status === "failed") setMessage(payload.package_error || "Package generation failed. Check worker logs.", true);
+          else if (payload.package_status === "ready") setMessage("Customer evidence package is ready to download.");
+          else setMessage(payload.review_status?.status === "draft_ready" ? "QA completed. Cited agent draft is ready for human review." : "QA completed. Deterministic evidence artifacts are ready.");
+        }
+      }
       else if (payload.status === "failed") { clearInterval(pollTimer); setMessage(payload.error || "Run failed.", true); }
       else setMessage("Run is queued or running. Keep this page open.");
     }
@@ -764,11 +816,22 @@ def _landing_page_html() -> str:
       try {
         const reviewer = $("reviewerName").value.trim(); if (!reviewer) throw new Error("Reviewer name is required.");
         const response = await fetch(`/api/v1/runs/${currentRunId}/review`, { method: "POST", headers: headers(true), body: JSON.stringify({ action, reviewer_name: reviewer, notes: $("reviewNotes").value.trim() }) });
-        const payload = await readJson(response); setMessage(action === "approve" ? "Approval recorded. Final customer report released." : "Rejection recorded. Final customer report remains withheld."); await refreshRun(); await loadArtifacts(currentRunId); $("reviewStatus").textContent = `Review status: ${titleCase(payload.review_status?.status || action)}`;
+        const payload = await readJson(response);
+        setMessage(action === "approve" ? "Approval recorded. Final report released and handoff packaging queued." : "Rejection recorded. Final customer report remains withheld.");
+        clearInterval(pollTimer);
+        if (action === "approve" && payload.package_status === "queued") pollTimer = setInterval(refreshRun, 3000);
+        await refreshRun();
+        await loadArtifacts(currentRunId);
       } catch (error) { setMessage(error.message, true); }
     }
-    $("newRunButton").addEventListener("click", () => $("newRunPanel").classList.toggle("open"));
-    $("closeNewRun").addEventListener("click", () => $("newRunPanel").classList.remove("open"));
+    function setNewRunOpen(open) {
+      $("newRunPanel").classList.toggle("open", open);
+      $("newRunButton").setAttribute("aria-expanded", String(open));
+      $("newRunButton").textContent = open ? "Close intake" : "New audit";
+      if (open) $("dataset").focus(); else $("newRunButton").focus();
+    }
+    $("newRunButton").addEventListener("click", () => setNewRunOpen(!$("newRunPanel").classList.contains("open")));
+    $("closeNewRun").addEventListener("click", () => setNewRunOpen(false));
     $("refreshRun").addEventListener("click", refreshRun);
     $("approvePackage").addEventListener("click", () => reviewRun("approve"));
     $("rejectPackage").addEventListener("click", () => reviewRun("reject"));
@@ -779,7 +842,7 @@ def _landing_page_html() -> str:
         const requiredColumns = $("requiredColumns").value.split(",").map((value) => value.trim()).filter(Boolean); const targetCrs = $("targetCrs").value.trim() || null;
         const customerIntake = { customer_name: $("customerName").value.trim(), business_owner: $("businessOwner").value.trim(), dataset_name: $("customerDatasetName").value.trim(), intended_use: $("intendedUse").value.trim(), decision_context: $("decisionContext").value.trim(), notes: $("customerNotes").value.trim() };
         const runResponse = await fetch("/api/v1/runs", { method: "POST", headers: headers(true), body: JSON.stringify({ upload_id: upload.upload_id, upload_storage_path: upload.storage_path, filename: upload.filename, required_columns: requiredColumns, target_crs: targetCrs, target_srid: targetCrs, customer_intake: customerIntake }) });
-        const run = await readJson(runResponse); currentRunId = run.run_id; currentArtifacts = {}; renderPackageRows(); $("refreshRun").disabled = false; $("newRunPanel").classList.remove("open"); renderRun(run); setMessage("Run queued. Worker will process it asynchronously."); await loadRecentRuns(); clearInterval(pollTimer); pollTimer = setInterval(refreshRun, 3000);
+        const run = await readJson(runResponse); currentRunId = run.run_id; currentArtifacts = {}; renderPackageRows(); $("refreshRun").disabled = false; setNewRunOpen(false); renderRun(run); setMessage("Run queued. GeoQA will refresh this page as evidence becomes available."); await loadRecentRuns(); clearInterval(pollTimer); pollTimer = setInterval(refreshRun, 3000);
       } catch (error) { setMessage(error.message, true); } finally { $("submitRun").disabled = false; }
     });
     initBasemap(); renderPackageRows(); renderRun({}); loadRecentRuns();
@@ -1041,7 +1104,7 @@ def _review_stored_report(
     action: str,
     reviewer_name: str,
     notes: str | None,
-) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+) -> tuple[dict[str, Any] | None, dict[str, Any], str]:
     """Review remotely stored artifacts without relying on the worker filesystem."""
     with tempfile.TemporaryDirectory(prefix="geoqa-review-") as temp_dir:
         output_dir = Path(temp_dir)
@@ -1069,17 +1132,32 @@ def _review_stored_report(
 
     merged_artifacts = dict(available)
     merged_artifacts.update(changed_artifacts)
+    package_status = "queued" if action == "approve" else "not_requested"
+    package_updates = {
+        "package_status": package_status,
+        "package_requested_at": _utc_now() if action == "approve" else None,
+        "package_completed_at": None,
+        "package_claimed_at": None,
+        "package_claimed_by": None,
+        "package_last_heartbeat_at": None,
+        "package_attempt_count": 0,
+        "package_error": None,
+        "package_error_type": None,
+    }
     store.update_run(
         str(run["run_id"]),
         review_status=review_status,
         artifacts=merged_artifacts,
+        **package_updates,
     )
     store.append_event(
         str(run["run_id"]),
         f"review_{action}",
         {"reviewer_name": reviewer_name, "notes": notes},
     )
-    return review_status, merged_artifacts
+    if action == "approve":
+        store.append_event(str(run["run_id"]), "package_queued", {"reviewer_name": reviewer_name})
+    return review_status, merged_artifacts, package_status
 
 
 @app.post("/api/v1/runs/<run_id>/review")
@@ -1108,9 +1186,33 @@ def review_run(run_id: str) -> Any:
     if not reviewer_name:
         raise APIError("validation_error", "reviewer_name is required.", details={"field": "reviewer_name"})
 
+    existing_review_status = (run.get("review_status") or {}) if state is None else read_agent_review_status(str(output_dir)) or {}
+    if existing_review_status.get("status") == "approved":
+        if action == "approve":
+            existing_artifacts = (
+                run.get("artifacts") or {}
+                if state is None
+                else _artifact_manifest(Path(str(output_dir)), run_id=run_id)
+            )
+            existing_package_status = (
+                run.get("package_status", "queued")
+                if state is None
+                else ("ready" if existing_artifacts.get("handoff_bundle", {}).get("exists") else "failed")
+            )
+            return _response(
+                {
+                    "run_id": run_id,
+                    "action": action,
+                    "review_status": existing_review_status,
+                    "package_status": existing_package_status,
+                    "artifacts": existing_artifacts,
+                }
+            )
+        raise APIError("review_finalized", "An approved customer package cannot be rejected.", status_code=409)
+
     try:
         if state is None:
-            review_status, artifacts = _review_stored_report(
+            review_status, artifacts, package_status = _review_stored_report(
                 _production_store(),
                 run,
                 action=action,
@@ -1125,6 +1227,15 @@ def review_run(run_id: str) -> Any:
                 notes=str(notes) if notes is not None else None,
             )
             review_status = read_agent_review_status(str(output_dir))
+            package_status = "not_requested"
+            if action == "approve":
+                try:
+                    generate_fix_plan_artifacts(str(output_dir))
+                    export_handoff_bundle(str(output_dir), include_comparison=False)
+                    artifacts = _artifact_manifest(Path(str(output_dir)), run_id=run_id)
+                    package_status = "ready"
+                except Exception:
+                    package_status = "failed"
     except Exception as exc:
         raise APIError("review_failed", str(exc), status_code=409) from exc
     return _response(
@@ -1132,6 +1243,7 @@ def review_run(run_id: str) -> Any:
             "run_id": run_id,
             "action": action,
             "review_status": review_status,
+            "package_status": package_status,
             "artifacts": artifacts,
         }
     )

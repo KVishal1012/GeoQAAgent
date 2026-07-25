@@ -143,6 +143,12 @@ class BaseProductionStore:
     def heartbeat_run(self, run_id: str, *, worker_id: str) -> dict[str, Any]:
         raise NotImplementedError
 
+    def claim_next_package(self, *, worker_id: str, stale_after_seconds: int, max_attempts: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    def heartbeat_package(self, run_id: str, *, worker_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
     def get_run(self, run_id: str) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -273,6 +279,16 @@ class LocalProductionStore(BaseProductionStore):
             "last_heartbeat_at": None,
             "attempt_count": 0,
             "max_attempts": self.config.worker_max_attempts,
+            "package_status": "not_requested",
+            "package_claimed_at": None,
+            "package_claimed_by": None,
+            "package_last_heartbeat_at": None,
+            "package_attempt_count": 0,
+            "package_max_attempts": self.config.worker_max_attempts,
+            "package_requested_at": None,
+            "package_completed_at": None,
+            "package_error": None,
+            "package_error_type": None,
         }
         self._write_run(run)
         self.append_event(run_id, "queued", {"filename": filename})
@@ -312,6 +328,45 @@ class LocalProductionStore(BaseProductionStore):
 
     def heartbeat_run(self, run_id: str, *, worker_id: str) -> dict[str, Any]:
         return self.update_run(run_id, last_heartbeat_at=utc_now(), claimed_by=worker_id)
+
+    def claim_next_package(self, *, worker_id: str, stale_after_seconds: int, max_attempts: int) -> dict[str, Any] | None:
+        now = datetime.now(timezone.utc)
+        candidates = []
+        for run in self.list_runs(limit=1000):
+            review_status = run.get("review_status") or {}
+            attempts = int(run.get("package_attempt_count") or 0)
+            max_for_run = int(run.get("package_max_attempts") or max_attempts)
+            if run.get("status") != "completed" or review_status.get("status") != "approved" or attempts >= max_for_run:
+                continue
+            if run.get("package_status") == "queued":
+                candidates.append(run)
+                continue
+            if run.get("package_status") == "building":
+                heartbeat = _parse_time(run.get("package_last_heartbeat_at") or run.get("package_claimed_at"))
+                if heartbeat and now - heartbeat > timedelta(seconds=stale_after_seconds):
+                    candidates.append(run)
+        candidates.sort(key=lambda row: str(row.get("package_requested_at") or row.get("updated_at") or ""))
+        if not candidates:
+            return None
+
+        run = candidates[0]
+        claimed_at = utc_now()
+        claimed = self.update_run(
+            str(run["run_id"]),
+            package_status="building",
+            package_claimed_at=claimed_at,
+            package_claimed_by=worker_id,
+            package_last_heartbeat_at=claimed_at,
+            package_attempt_count=int(run.get("package_attempt_count") or 0) + 1,
+            package_max_attempts=int(run.get("package_max_attempts") or max_attempts),
+            package_error=None,
+            package_error_type=None,
+        )
+        self.append_event(str(run["run_id"]), "package_building", {"worker_id": worker_id})
+        return claimed
+
+    def heartbeat_package(self, run_id: str, *, worker_id: str) -> dict[str, Any]:
+        return self.update_run(run_id, package_last_heartbeat_at=utc_now(), package_claimed_by=worker_id)
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         path = self._run_path(run_id)
@@ -518,32 +573,51 @@ class SupabaseProductionStore(BaseProductionStore):
             "artifacts": {},
             "attempt_count": 0,
             "max_attempts": self.config.worker_max_attempts,
+            "package_status": "not_requested",
+            "package_attempt_count": 0,
+            "package_max_attempts": self.config.worker_max_attempts,
         }
         created = self._rest("POST", "geoqa_runs", run, prefer="return=representation")
         self.append_event(run["run_id"], "queued", {"filename": filename})
         return created[0] if isinstance(created, list) and created else run
 
     def claim_next_run(self, *, worker_id: str, stale_after_seconds: int, max_attempts: int) -> dict[str, Any] | None:
-        candidates = self._claim_candidates(stale_after_seconds=stale_after_seconds, max_attempts=max_attempts)
-        for run in candidates:
-            run_id = str(run["run_id"])
-            attempt_count = int(run.get("attempt_count") or 0) + 1
-            updated = self.update_run(
-                run_id,
-                status="running",
-                claimed_at=utc_now(),
-                claimed_by=worker_id,
-                last_heartbeat_at=utc_now(),
-                attempt_count=attempt_count,
-                max_attempts=int(run.get("max_attempts") or max_attempts),
-                error=None,
-                error_type=None,
-            )
-            return updated
-        return None
+        rows = self._rest(
+            "POST",
+            "rpc/claim_geoqa_run",
+            {
+                "p_worker_id": worker_id,
+                "p_stale_after_seconds": stale_after_seconds,
+                "p_max_attempts": max_attempts,
+            },
+        )
+        if not rows:
+            return None
+        claimed = rows[0] if isinstance(rows, list) else rows
+        self.append_event(str(claimed["run_id"]), "running", {"worker_id": worker_id})
+        return claimed
 
     def heartbeat_run(self, run_id: str, *, worker_id: str) -> dict[str, Any]:
         return self.update_run(run_id, last_heartbeat_at=utc_now(), claimed_by=worker_id)
+
+    def claim_next_package(self, *, worker_id: str, stale_after_seconds: int, max_attempts: int) -> dict[str, Any] | None:
+        rows = self._rest(
+            "POST",
+            "rpc/claim_geoqa_package",
+            {
+                "p_worker_id": worker_id,
+                "p_stale_after_seconds": stale_after_seconds,
+                "p_max_attempts": max_attempts,
+            },
+        )
+        if not rows:
+            return None
+        claimed = rows[0] if isinstance(rows, list) else rows
+        self.append_event(str(claimed["run_id"]), "package_building", {"worker_id": worker_id})
+        return claimed
+
+    def heartbeat_package(self, run_id: str, *, worker_id: str) -> dict[str, Any]:
+        return self.update_run(run_id, package_last_heartbeat_at=utc_now(), package_claimed_by=worker_id)
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         rows = self._rest("GET", f"geoqa_runs?run_id=eq.{urllib.parse.quote(run_id)}&limit=1")
@@ -619,19 +693,6 @@ class SupabaseProductionStore(BaseProductionStore):
         filename = str(artifact.get("filename") or ARTIFACT_NAMES.get(artifact_name, artifact_name))
         data = self._storage_get(self.config.artifact_bucket, str(artifact["storage_path"]))
         return data, filename, mimetypes.guess_type(filename)[0] or "application/octet-stream"
-
-    def _claim_candidates(self, *, stale_after_seconds: int, max_attempts: int) -> list[dict[str, Any]]:
-        queued = self._rest("GET", f"geoqa_runs?status=eq.queued&order=submitted_at.asc&limit=5")
-        if queued:
-            return [row for row in queued if int(row.get("attempt_count") or 0) < int(row.get("max_attempts") or max_attempts)]
-        stale_before = (datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)).isoformat()
-        stale = self._rest(
-            "GET",
-            "geoqa_runs?status=eq.running"
-            f"&last_heartbeat_at=lt.{urllib.parse.quote(stale_before)}"
-            "&order=submitted_at.asc&limit=5",
-        )
-        return [row for row in stale if int(row.get("attempt_count") or 0) < int(row.get("max_attempts") or max_attempts)]
 
     def _headers(self, content_type: str = "application/json") -> dict[str, str]:
         return {

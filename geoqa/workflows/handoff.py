@@ -63,10 +63,22 @@ def build_bundle_manifest(
         "fix_plan.md",
         "fix_plan.json",
     ]
+    review_status = _load_review_status(run_output_dir)
+    approved_package = review_status.get("status") == "approved"
+    if approved_package:
+        required_files.extend(
+            [
+                "agent_report.md",
+                "final_customer_report.md",
+                "final_customer_report.pdf",
+            ]
+        )
     optional_files = [
+        "map_preview.geojson",
         "agent_report_draft.md",
-        "agent_report.md",
         "agent_report.json",
+        "agent_session.json",
+        "agent_trace.json",
         "report_consistency.json",
         "hallucination_check.json",
     ]
@@ -91,6 +103,7 @@ def build_bundle_manifest(
         "complete": not blocking_missing,
         "blocking_missing": blocking_missing,
         "warning_missing": warning_missing,
+        "approved_package": approved_package,
         "selected_comparison_key": selected_comparison_key,
         "included_files": sorted(dict.fromkeys(included_files)),
     }
@@ -106,3 +119,14 @@ def _resolve_comparison_selection(run_output_dir: Path, comparison_key: str | No
                 return comparison
         return None
     return comparisons[0]
+
+
+def _load_review_status(run_output_dir: Path) -> dict[str, object]:
+    path = run_output_dir / "review_status.json"
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}

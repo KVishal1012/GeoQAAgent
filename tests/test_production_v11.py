@@ -9,7 +9,7 @@ import pytest
 
 from geoqa.config import load_app_config
 from geoqa.production.store import LocalProductionStore, ProductionStoreError, SupabaseProductionStore
-from geoqa.production.worker import process_next_run
+from geoqa.production.worker import process_next_package, process_next_run
 
 
 def _configure_local(monkeypatch, tmp_path, **extra: str) -> None:
@@ -166,6 +166,77 @@ def test_worker_claim_prevents_duplicate_processing(monkeypatch, tmp_path):
     assert duplicate is None
 
 
+def test_package_claim_prevents_duplicate_processing(monkeypatch, tmp_path):
+    _configure_local(monkeypatch, tmp_path, GEOQA_WORKER_ID="worker-a")
+    store = LocalProductionStore(load_app_config())
+    upload_path = tmp_path / "input.geojson"
+    _write_geojson(upload_path)
+    run = store.create_run(upload_id="upload-1", filename="input.geojson", upload_storage_path=str(upload_path))
+    store.update_run(
+        run["run_id"],
+        status="completed",
+        review_status={"status": "approved"},
+        package_status="queued",
+        package_requested_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    claimed = store.claim_next_package(worker_id="worker-a", stale_after_seconds=900, max_attempts=3)
+    duplicate = store.claim_next_package(worker_id="worker-b", stale_after_seconds=900, max_attempts=3)
+
+    assert claimed is not None
+    assert claimed["package_status"] == "building"
+    assert claimed["package_claimed_by"] == "worker-a"
+    assert claimed["package_attempt_count"] == 1
+    assert duplicate is None
+
+
+def test_stale_package_job_can_be_reclaimed(monkeypatch, tmp_path):
+    _configure_local(monkeypatch, tmp_path)
+    store = LocalProductionStore(load_app_config())
+    upload_path = tmp_path / "input.geojson"
+    _write_geojson(upload_path)
+    run = store.create_run(upload_id="upload-1", filename="input.geojson", upload_storage_path=str(upload_path))
+    stale_time = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+    store.update_run(
+        run["run_id"],
+        status="completed",
+        review_status={"status": "approved"},
+        package_status="building",
+        package_claimed_by="old-worker",
+        package_claimed_at=stale_time,
+        package_last_heartbeat_at=stale_time,
+    )
+
+    reclaimed = store.claim_next_package(worker_id="new-worker", stale_after_seconds=30, max_attempts=3)
+
+    assert reclaimed is not None
+    assert reclaimed["run_id"] == run["run_id"]
+    assert reclaimed["package_claimed_by"] == "new-worker"
+    assert reclaimed["package_attempt_count"] == 1
+
+
+def test_supabase_claims_use_atomic_rpc(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    store = SupabaseProductionStore(load_app_config())
+    calls = []
+
+    def fake_rest(method, path, payload=None, prefer=None):
+        calls.append((method, path, payload))
+        return [{"run_id": "run-1"}]
+
+    monkeypatch.setattr(store, "_rest", fake_rest)
+    monkeypatch.setattr(store, "append_event", lambda *args, **kwargs: None)
+
+    claimed_run = store.claim_next_run(worker_id="worker-a", stale_after_seconds=900, max_attempts=3)
+    claimed_package = store.claim_next_package(worker_id="worker-a", stale_after_seconds=900, max_attempts=3)
+
+    assert claimed_run == {"run_id": "run-1"}
+    assert claimed_package == {"run_id": "run-1"}
+    assert calls[0][0:2] == ("POST", "rpc/claim_geoqa_run")
+    assert calls[1][0:2] == ("POST", "rpc/claim_geoqa_package")
+
+
 def test_stale_running_job_can_be_reclaimed(monkeypatch, tmp_path):
     _configure_local(monkeypatch, tmp_path)
     store = LocalProductionStore(load_app_config())
@@ -199,3 +270,29 @@ def test_failed_worker_attempt_requeues_then_stops_at_max_attempts(monkeypatch, 
     assert second["status"] == "failed"
     assert second["attempt_count"] == 2
     assert second["error"] == "GeoQA processing failed. Review the worker logs for details."
+
+
+def test_failed_package_attempt_requeues_then_stops_at_max_attempts(monkeypatch, tmp_path):
+    _configure_local(monkeypatch, tmp_path, GEOQA_WORKER_MAX_ATTEMPTS="2")
+    store = LocalProductionStore(load_app_config())
+    upload_path = tmp_path / "input.geojson"
+    _write_geojson(upload_path)
+    run = store.create_run(upload_id="upload-1", filename="input.geojson", upload_storage_path=str(upload_path))
+    store.update_run(
+        run["run_id"],
+        status="completed",
+        review_status={"status": "approved"},
+        package_status="queued",
+        package_requested_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    first = process_next_package(store=store)
+    second = process_next_package(store=store)
+
+    assert first is not None
+    assert first["package_status"] == "queued"
+    assert first["package_attempt_count"] == 1
+    assert second is not None
+    assert second["package_status"] == "failed"
+    assert second["package_attempt_count"] == 2
+    assert second["package_error"] == "Customer package generation failed. Review the worker logs for details."

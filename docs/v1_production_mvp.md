@@ -26,6 +26,8 @@ Apply the migrations in order:
 ```bash
 supabase/migrations/001_v1_production_mvp.sql
 supabase/migrations/002_v11_worker_claims_large_uploads.sql
+supabase/migrations/003_customer_intake.sql
+supabase/migrations/004_package_jobs_atomic_claims.sql
 ```
 
 Required Vercel and worker environment variables:
@@ -80,6 +82,8 @@ Use the page to:
 - inspect the cited agent draft and deterministic evidence artifacts
 - approve or reject the draft with a reviewer name and optional notes
 - download `final_customer_report.md` or `final_customer_report.pdf` only after approval
+- wait for `package_status` to become `ready`
+- download the authenticated `handoff_bundle.zip`
 
 ## Smoke Tests
 
@@ -99,6 +103,7 @@ Expected results:
 - completed runs expose downloadable QA artifacts.
 - configured workers generate a bounded cited draft after deterministic QA.
 - the final customer report is unavailable before approval and downloadable after approval.
+- approval queues one worker-built handoff package and duplicate approval remains idempotent.
 
 ## V1.1 Large-File Mode
 
@@ -112,4 +117,6 @@ Large-file mode is intentionally gated behind Supabase:
 
 ## V1.1 Worker Safety
 
-The worker now claims jobs before processing and writes heartbeat metadata. This prevents duplicate workers from processing the same queued run and allows stale `running` jobs to be reclaimed after `GEOQA_WORKER_STALE_AFTER_SECONDS`. Failed jobs retry until `GEOQA_WORKER_MAX_ATTEMPTS`, then remain `failed` with a safe user-facing error.
+The worker atomically claims QA and package jobs through Supabase RPC functions and writes heartbeat metadata throughout long geospatial operations. This prevents duplicate workers from processing the same run and allows stale work to be reclaimed after `GEOQA_WORKER_STALE_AFTER_SECONDS`.
+
+Approved reports queue a separate package job. The worker downloads the evidence artifacts, builds `bundle_manifest.json` and `handoff_bundle.zip`, uploads both to private artifact storage, and changes `package_status` to `ready`. Failed QA or package jobs retry until `GEOQA_WORKER_MAX_ATTEMPTS`, then remain failed with a safe user-facing error.

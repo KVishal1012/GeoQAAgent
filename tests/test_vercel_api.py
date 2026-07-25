@@ -10,7 +10,7 @@ from api.index import _enrich_run_payload_with_artifacts, app
 from geoqa.config import load_app_config
 from geoqa.llm.gateway import StaticLLMGateway
 from geoqa.production.store import LocalProductionStore
-from geoqa.production.worker import process_next_run
+from geoqa.production.worker import process_next_package, process_next_run
 
 
 def _write_geojson(path: Path) -> None:
@@ -74,16 +74,36 @@ def test_vercel_root_renders_operator_ui(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert response.content_type.startswith("text/html")
     assert "GeoQA Data Readiness Audit" in body
-    assert "Evidence Package Console" in body
-    assert "New run" in body
+    assert "GeoQA · Data readiness" in body
+    assert "New audit" in body
     assert "Spatial evidence" in body
     assert "Final customer report" in body
     assert "Issues CSV" in body
     assert "Handoff bundle" in body
-    assert "Approve package" in body
+    assert "Approve report" in body
     assert "Target CRS / SRID" in body
     assert "EPSG:3857" in body
     assert 'type="file"' in body
+
+
+def test_vercel_root_uses_hardened_operator_hierarchy(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+
+    client = app.test_client()
+    body = client.get("/").get_data(as_text=True)
+
+    assert "Upload a dataset, review the evidence, and approve the customer report." in body
+    assert "Recent runs" in body
+    assert "Findings to review" in body
+    assert "Downloads" in body
+    assert "Customer report approval" in body
+    assert 'aria-controls="newRunPanel"' in body
+    assert 'id="reviewForm" class="review-box" hidden' in body
+    assert 'setAttribute("aria-expanded", String(open))' in body
+    assert "Mission controls" not in body
+    assert "Comparison delta" not in body
+    assert "Compact intake drawer" not in body
+    assert "download-card" not in body
 
 
 def test_vercel_root_prioritizes_revenue_artifacts(monkeypatch, tmp_path):
@@ -118,6 +138,19 @@ def test_vercel_root_contains_review_ui_contract(monkeypatch, tmp_path):
     assert "/api/v1/runs/${currentRunId}/review" in body
 
 
+def test_vercel_root_uses_authenticated_artifact_downloads(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
+
+    client = app.test_client()
+    body = client.get("/").get_data(as_text=True)
+
+    assert "async function downloadArtifact(name)" in body
+    assert "fetch(artifact.url, { headers: headers() })" in body
+    assert "URL.createObjectURL(blob)" in body
+    assert "artifact-download" in body
+    assert '<a href="${artifact.url}"' not in body
+
+
 def test_vercel_root_uses_resumable_supabase_upload_for_large_files(monkeypatch, tmp_path):
     monkeypatch.setenv("GEOQA_OUTPUT_ROOT", str(tmp_path / "outputs"))
 
@@ -138,6 +171,13 @@ def test_vercel_root_uses_resumable_supabase_upload_for_large_files(monkeypatch,
     assert "OpenStreetMap contributors" in body
     assert "renderMapPreview" in body
     assert "loadMapPreviewArtifact" in body
+    assert "Dataset sample" in body
+    assert "Spatial outliers" in body
+    assert "L.control.layers" in body
+    assert "Record ID:" in body
+    assert "Geometry type:" in body
+    assert "Evidence role:" in body
+    assert "sampled record" in body
     assert "session.resumable_upload" in body
     assert "resumable_headers" in body
     assert "session.upload_url" in body
@@ -434,16 +474,48 @@ def test_completed_qa_generates_cited_draft_and_approval_releases_final_report(m
     )
 
     assert approved.status_code == 200
-    assert approved.get_json()["review_status"]["status"] == "approved"
+    approved_payload = approved.get_json()
+    assert approved_payload["review_status"]["status"] == "approved"
+    assert approved_payload["package_status"] == "queued"
     final_run = store.get_run(run["run_id"])
     assert final_run["artifacts"]["final_customer_report"]["exists"] is True
     assert final_run["artifacts"]["final_customer_report_pdf"]["exists"] is True
+    assert final_run["package_status"] == "queued"
     final_pdf = client.get(
         f"/api/v1/runs/{run['run_id']}/artifacts/final_customer_report_pdf/download",
         headers=headers,
     )
     assert final_pdf.status_code == 200
     assert final_pdf.data[:4] == b"%PDF"
+
+    packaged = process_next_package(store=store)
+    assert packaged is not None
+    assert packaged["package_status"] == "ready"
+    assert packaged["artifacts"]["handoff_bundle"]["exists"] is True
+    assert packaged["artifacts"]["bundle_manifest"]["exists"] is True
+
+    bundle = client.get(
+        f"/api/v1/runs/{run['run_id']}/artifacts/handoff_bundle/download",
+        headers=headers,
+    )
+    assert bundle.status_code == 200
+    assert bundle.data[:2] == b"PK"
+
+    duplicate_approval = client.post(
+        f"/api/v1/runs/{run['run_id']}/review",
+        headers=headers,
+        json={"action": "approve", "reviewer_name": "QA Reviewer"},
+    )
+    assert duplicate_approval.status_code == 200
+    assert duplicate_approval.get_json()["package_status"] == "ready"
+
+    rejected_after_release = client.post(
+        f"/api/v1/runs/{run['run_id']}/review",
+        headers=headers,
+        json={"action": "reject", "reviewer_name": "QA Reviewer"},
+    )
+    assert rejected_after_release.status_code == 409
+    assert rejected_after_release.get_json()["error"]["code"] == "review_finalized"
 
 
 def test_vercel_upload_init_and_complete_local_fallback(monkeypatch, tmp_path):

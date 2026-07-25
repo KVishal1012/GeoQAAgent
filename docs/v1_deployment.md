@@ -29,10 +29,7 @@ Set these environment variables in Vercel:
 - `GEOQA_LARGE_FILE_MODE`
 - `GEOQA_LARGE_FILE_MAX_UPLOAD_MB`
 
-Optional for live agent workflows:
-
-- `OPENAI_API_KEY`
-- `GEOQA_LLM_MODEL`
+OpenAI credentials are not required on Vercel. Keep them on the worker runtime only.
 
 ### Python Worker And Streamlit Host
 
@@ -51,6 +48,24 @@ Set these environment variables on the Streamlit host:
 - `GEOQA_WORKER_MAX_ATTEMPTS`
 - `OPENAI_API_KEY` when live agent mode is enabled
 - `GEOQA_LLM_MODEL` when live agent mode is enabled
+
+Recommended production worker values:
+
+- `GEOQA_WORKER_ID=geoqa-worker-prod`
+- `GEOQA_WORKER_POLL_SECONDS=5`
+- `GEOQA_WORKER_STALE_AFTER_SECONDS=900`
+- `GEOQA_WORKER_MAX_ATTEMPTS=3`
+- `GEOQA_LLM_MODEL=gpt-4.1-mini-2025-04-14`
+- `GEOQA_AGENT_MAX_STEPS=6`
+- `GEOQA_AGENT_OUTPUT_TOKEN_BUDGET=1600`
+- `GEOQA_OPENAI_TIMEOUT_SECONDS=30`
+- `GEOQA_OPENAI_MAX_RETRIES=2`
+
+## Cloud Run Worker Pool
+
+The production worker runs as one Cloud Run worker-pool instance in `us-east4` with `2 vCPU` and `8 GiB` memory. Build the existing Docker image, override its command with `python3 -m geoqa.production.worker`, and mount the Supabase service-role and OpenAI values from Secret Manager.
+
+Use dedicated GCP project `geoqa-agent-prod-kv1012-20260725`. Keep `/tmp/geoqa-outputs` ephemeral; completed artifacts must be uploaded to Supabase before a job is marked ready.
 
 ## Vercel Verification
 
@@ -99,7 +114,10 @@ Before calling a deployment V1-ready:
 - Vercel upload UI and health/config endpoints work
 - authenticated upload and run routes work
 - worker claims and processes a queued upload run
+- approval queues a worker-built handoff package
+- authenticated artifact buttons download successfully with `GEOQA_API_KEY` enabled
 - stale running jobs can be reclaimed
+- stale package jobs can be reclaimed
 - large-file mode is enabled only with Supabase configured
 - Streamlit demo flow works end to end
 - demo output includes deterministic artifacts, agent artifacts, review status, and handoff bundle

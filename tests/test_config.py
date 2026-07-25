@@ -35,7 +35,7 @@ def test_load_app_config_reads_env_file(tmp_path, monkeypatch):
     assert config.openai_retry_backoff_seconds == 2.5
 
 
-def test_load_app_config_uses_defaults_for_static_internal_mode(monkeypatch):
+def test_load_app_config_uses_defaults_for_static_internal_mode(monkeypatch, tmp_path):
     for key in (
         "OPENAI_API_KEY",
         "GEOQA_LLM_MODEL",
@@ -47,7 +47,7 @@ def test_load_app_config_uses_defaults_for_static_internal_mode(monkeypatch):
     ):
         monkeypatch.delenv(key, raising=False)
 
-    config = load_app_config()
+    config = load_app_config(str(tmp_path / "missing.env"))
 
     assert config.output_root == "outputs"
     assert config.agent_report_enabled is True
@@ -63,11 +63,11 @@ def test_load_app_config_rejects_invalid_timeout(monkeypatch):
         load_app_config()
 
 
-def test_diagnose_config_reports_missing_openai_settings(monkeypatch):
+def test_diagnose_config_reports_missing_openai_settings(monkeypatch, tmp_path):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("GEOQA_LLM_MODEL", raising=False)
 
-    diagnosis = diagnose_config(load_app_config())
+    diagnosis = diagnose_config(load_app_config(str(tmp_path / "missing.env")))
 
     assert diagnosis["checks"]["openai_api_key_configured"] is False
     assert diagnosis["checks"]["llm_model_configured"] is False
