@@ -12,3 +12,4 @@ vercel.env
 .npm-cache/
 .vercel-cli/
 .codex_tmp/
+.playwright-cli/
