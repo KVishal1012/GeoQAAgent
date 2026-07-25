@@ -141,6 +141,15 @@ def _extract_allowed_numbers(
         default=str,
     )
     numbers = _extract_numbers(serialized)
+    for number in tuple(numbers):
+        if "." not in number:
+            continue
+        try:
+            numeric_value = float(number)
+        except ValueError:
+            continue
+        for precision in range(1, 7):
+            numbers.add(_normalize_number(f"{numeric_value:.{precision}f}"))
     if summary.get("readiness", {}).get("score") is not None:
         numbers.add("100")
     return numbers
@@ -191,11 +200,21 @@ def _issue_code_counts(issues: list[dict[str, Any]]) -> dict[str, int]:
 def _mentions_positive_severity(text: str, severity: str) -> bool:
     lowered = text.lower()
     for match in re.finditer(rf"\b{severity}[- ]severity\b|\b{severity}\b", lowered):
-        prefix = lowered[max(0, match.start() - 12) : match.start()]
-        if "no " in prefix or "zero " in prefix or "`0`" in prefix:
+        if _severity_mention_is_negated(lowered, match):
             continue
         return True
     return False
+
+
+def _severity_mention_is_negated(text: str, match: re.Match[str]) -> bool:
+    prefix = text[max(0, match.start() - 96) : match.start()]
+    if "`0`" in prefix[-24:]:
+        return True
+    negations = list(re.finditer(r"\b(?:no|zero)\b", prefix))
+    if not negations:
+        return False
+    governed_text = prefix[negations[-1].end() :]
+    return not re.search(r"\b(?:but|however|except)\b|[.!?;\n]", governed_text)
 
 
 def _extract_report_issue_codes(report_text: str) -> set[str]:
@@ -222,7 +241,8 @@ def _validate_explicit_severity_counts(text: str, severity_counts: dict[str, int
 def _validate_no_severity_claims(text: str, severity_counts: dict[str, int], errors: list[str]) -> None:
     lowered = text.lower()
     for severity in SEVERITIES:
-        if re.search(rf"\bno\s+{severity}(?:-|\s+)severity\s+(?:issues|findings)\b", lowered):
+        mentions = re.finditer(rf"\b{severity}[- ]severity\b|\b{severity}\b", lowered)
+        if any(_severity_mention_is_negated(lowered, match) for match in mentions):
             actual_count = severity_counts.get(severity, 0)
             if actual_count != 0:
                 errors.append(

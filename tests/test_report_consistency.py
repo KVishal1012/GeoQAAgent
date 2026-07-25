@@ -58,6 +58,28 @@ def test_report_consistency_blocks_unsupported_number():
     assert "Unsupported numeric value in report: 999" in result.blocking_errors
 
 
+def test_report_consistency_allows_rounded_evidence_coordinates():
+    summary, issues, run_record = _evidence()
+    summary["dataset"]["geometry_profile"] = {
+        "total_bounds": {
+            "min_x": -79.5797027580265,
+            "min_y": 43.5984784439551,
+            "max_x": -79.3831494830163,
+            "max_y": 43.6938145826081,
+        }
+    }
+
+    result = check_report_consistency(
+        "The sampled extent spans latitudes 43.6 to 43.69 and longitudes 79.38 to 79.58.",
+        summary,
+        issues,
+        run_record,
+    )
+
+    assert result.passed
+    assert result.blocking_errors == []
+
+
 def test_report_consistency_blocks_wrong_readiness_band():
     summary, issues, run_record = _evidence()
 
@@ -139,6 +161,35 @@ def test_report_consistency_blocks_false_no_high_severity_claim():
     run_record["issue_counts"]["high"] = 1
 
     result = check_report_consistency("No high-severity issues were detected.", summary, issues, run_record)
+
+    assert not result.passed
+    assert any("no high-severity findings" in error for error in result.blocking_errors)
+
+
+def test_report_consistency_allows_coordinated_no_high_severity_claim():
+    summary, issues, run_record = _evidence()
+
+    result = check_report_consistency(
+        "Since there were no critical or high severity issues, the findings should still be reviewed.",
+        summary,
+        issues,
+        run_record,
+    )
+
+    assert result.passed
+    assert result.blocking_errors == []
+
+
+def test_report_consistency_blocks_false_coordinated_no_high_severity_claim():
+    summary, issues, run_record = _evidence()
+    run_record["issue_counts"]["high"] = 1
+
+    result = check_report_consistency(
+        "Since there were no critical or high severity issues, the dataset can proceed to review.",
+        summary,
+        issues,
+        run_record,
+    )
 
     assert not result.passed
     assert any("no high-severity findings" in error for error in result.blocking_errors)
