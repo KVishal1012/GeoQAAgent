@@ -14,6 +14,44 @@ INTENDED_USE_LABELS = {
     "other": "general downstream use",
 }
 
+INTENDED_USE_REQUIREMENTS = {
+    "sql_load": {
+        "decision_question": "Can this dataset be loaded without avoidable schema, SRID, or geometry failures?",
+        "review_focus": ["CRS/SRID consistency", "valid and non-empty geometry", "database-safe column names"],
+        "handoff_condition": "Resolve or explicitly accept SQL Server, CRS/SRID, geometry, and required-column findings before loading.",
+    },
+    "dashboard": {
+        "decision_question": "Can this dataset support reliable maps, totals, and dashboard filters?",
+        "review_focus": ["spatial outliers", "duplicate features", "required reporting fields"],
+        "handoff_condition": "Confirm spatial outliers, duplicates, and reporting-field completeness before publishing dashboards.",
+    },
+    "migration": {
+        "decision_question": "Can this dataset be migrated without losing identity, geometry meaning, or coordinate integrity?",
+        "review_focus": ["stable feature identifiers", "geometry type compatibility", "target CRS/SRID"],
+        "handoff_condition": "Confirm identifiers, geometry compatibility, required fields, and target CRS before migration.",
+    },
+    "routing": {
+        "decision_question": "Does the evidence identify geometry or referencing findings that need review before network analysis?",
+        "review_focus": ["line geometry validity", "duplicate geometry", "linear referencing fields"],
+        "handoff_condition": "Review line validity, duplicates, connectivity-related attributes, and linear referencing findings before network use.",
+    },
+    "asset_handoff": {
+        "decision_question": "Can the receiving team trace, understand, and accept the supplied asset records?",
+        "review_focus": ["stable identifiers", "required asset fields", "documented accepted findings"],
+        "handoff_condition": "Resolve required-field and identifier findings, then document accepted limitations in the handoff record.",
+    },
+    "spatial_join": {
+        "decision_question": "Can this dataset participate in spatial joins without obvious location, CRS, or duplicate-record risk?",
+        "review_focus": ["CRS alignment", "spatial outliers", "duplicate geometry"],
+        "handoff_condition": "Confirm CRS alignment, spatial outliers, and duplicate geometry before running production joins.",
+    },
+    "other": {
+        "decision_question": "What evidence must be reviewed before this dataset is used downstream?",
+        "review_focus": ["high-priority findings", "geometry and CRS", "required fields"],
+        "handoff_condition": "Resolve high-priority findings and document acceptance of remaining limitations before downstream use.",
+    },
+}
+
 
 def build_customer_intake(
     *,
@@ -67,6 +105,7 @@ def build_customer_report_context(qa_result: QAResult) -> dict[str, Any]:
         "issue_counts": issue_counts,
         "top_issues": [issue.to_dict() for issue in top_issues],
         "workflow_guidance": build_workflow_guidance(qa_result, intake),
+        "use_requirements": build_intended_use_requirements(intake),
         "next_steps": build_recommended_next_steps(issue_counts, summary.get("spatial_anomalies", {})),
     }
 
@@ -107,6 +146,42 @@ def build_workflow_guidance(qa_result: QAResult, intake: dict[str, Any]) -> dict
     if "SQLSERVER_MISSING_SRID" in issue_codes or "SQLSERVER_INCOMPATIBLE_COLUMN_NAME" in issue_codes:
         rationale += " SQL Server compatibility findings should be addressed before database loading."
     return {"decision": decision, "rationale": rationale}
+
+
+def build_intended_use_requirements(intake: dict[str, Any]) -> dict[str, Any]:
+    intended_use = str(intake.get("intended_use") or "other")
+    return dict(INTENDED_USE_REQUIREMENTS.get(intended_use, INTENDED_USE_REQUIREMENTS["other"]))
+
+
+def customer_issue_fields(issue: dict[str, Any], intended_use: str | None = None) -> dict[str, str]:
+    context = issue.get("context") or {}
+    affected = issue.get("feature_id")
+    if affected in (None, ""):
+        affected = context.get("column") or context.get("column_name") or "Dataset"
+    issue_code = str(issue.get("issue_code") or "")
+    severity = str(issue.get("severity") or "unknown").lower()
+    use_label = INTENDED_USE_LABELS.get(str(intended_use or ""), "downstream use")
+    if issue_code.startswith(("CRS_", "SQLSERVER_MISSING_SRID")):
+        impact = f"Coordinate or SRID inconsistency can place features incorrectly or interrupt {use_label}."
+    elif issue_code in {"NULL_GEOMETRY", "EMPTY_GEOMETRY", "INVALID_GEOMETRY", "ZERO_LENGTH_LINE"}:
+        impact = f"Missing or invalid geometry can be skipped, rejected, or produce misleading results during {use_label}."
+    elif issue_code in {"DUPLICATE_GEOMETRY", "DUPLICATE_FEATURE_ID"}:
+        impact = f"Duplicates can inflate counts or create repeated matches during {use_label}."
+    elif issue_code == "SPATIAL_OUTLIER":
+        impact = f"A remote location can indicate a coordinate, CRS, or source-record problem before {use_label}."
+    elif "COLUMN" in issue_code or "SCHEMA" in issue_code:
+        impact = f"Schema inconsistency can interrupt loading, filtering, ownership, or handoff for {use_label}."
+    elif severity == "high":
+        impact = f"This high-priority finding can block trusted {use_label}."
+    else:
+        impact = f"This finding should be reviewed so its effect on {use_label} is understood and documented."
+    return {
+        "severity": severity.title(),
+        "finding": str(issue.get("message") or issue_code.replace("_", " ").title()),
+        "affected_record_or_column": str(affected),
+        "why_it_matters": impact,
+        "suggested_action": str(issue.get("suggested_fix") or "Review with the data owner and document the resolution."),
+    }
 
 
 def build_recommended_next_steps(issue_counts: dict[str, int], spatial_anomalies: dict[str, Any]) -> list[str]:

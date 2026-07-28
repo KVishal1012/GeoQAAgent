@@ -22,12 +22,21 @@ Customer notes: {{ context.customer_notes }}
 ## Intended Use
 
 - Intended use: {{ context.intended_use_label }}
+- Decision question: {{ context.use_requirements.decision_question }}
 - Target CRS/SRID: `{{ context.target_crs or "source CRS" }}`
 {% if context.required_columns %}
 - Required columns: {{ context.required_columns | join(", ") }}
 {% else %}
 - Required columns: none specified
 {% endif %}
+
+### Intended-Use Review Focus
+
+{% for item in context.use_requirements.review_focus %}
+- {{ item }}
+{% endfor %}
+
+**Release condition:** {{ context.use_requirements.handoff_condition }}
 
 ## Readiness Result
 

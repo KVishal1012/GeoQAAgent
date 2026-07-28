@@ -1,0 +1,29 @@
+name: GeoQA V1.2 release gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Deployed GeoQA URL
+        required: true
+        default: https://geoqa-agent.vercel.app
+      run_id:
+        description: Approved acceptance run ID
+        required: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify API, Supabase, worker, and approved package
+        env:
+          GEOQA_API_KEY: ${{ secrets.GEOQA_API_KEY }}
+        run: >-
+          python -m geoqa.ops.release_gate
+          --base-url "${{ inputs.base_url }}"
+          --run-id "${{ inputs.run_id }}"
+          --require-approved-package

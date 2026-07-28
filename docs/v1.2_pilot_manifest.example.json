@@ -1,0 +1,30 @@
+{
+  "datasets": [
+    {
+      "name": "Municipal roads",
+      "input_path": "/secure/pilot/municipal_roads.zip",
+      "customer_name": "Pilot customer 1",
+      "intended_use": "sql_load",
+      "required_columns": ["asset_id", "road_name"],
+      "minimum_score": 0,
+      "allowed_bands": ["ready", "needs_review", "not_ready"]
+    },
+    {
+      "name": "Utility assets",
+      "input_path": "/secure/pilot/utility_assets.gpkg",
+      "customer_name": "Pilot customer 2",
+      "intended_use": "asset_handoff",
+      "required_columns": ["asset_id"],
+      "minimum_score": 0,
+      "allowed_bands": ["ready", "needs_review", "not_ready"]
+    },
+    {
+      "name": "Reporting boundaries",
+      "input_path": "/secure/pilot/reporting_boundaries.geojson",
+      "customer_name": "Pilot customer 3",
+      "intended_use": "dashboard",
+      "minimum_score": 0,
+      "allowed_bands": ["ready", "needs_review", "not_ready"]
+    }
+  ]
+}

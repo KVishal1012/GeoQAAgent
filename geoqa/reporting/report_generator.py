@@ -10,7 +10,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from geoqa.models import QAResult
-from geoqa.reporting.customer_report import build_customer_report_context
+from geoqa.reporting.customer_report import build_customer_report_context, customer_issue_fields
 from geoqa.workflows.run_index import append_run_index
 
 
@@ -82,7 +82,13 @@ def generate_artifacts(
 
 def _write_issues_csv(path: Path, qa_result: QAResult) -> None:
     rows = [issue.to_dict() for issue in qa_result.issues]
+    intended_use = (qa_result.summary.get("customer_intake") or {}).get("intended_use")
     fieldnames = [
+        "Severity",
+        "Finding",
+        "Affected record/column",
+        "Why it matters",
+        "Suggested action",
         "issue_code",
         "check_name",
         "severity",
@@ -95,8 +101,18 @@ def _write_issues_csv(path: Path, qa_result: QAResult) -> None:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
+            customer_fields = customer_issue_fields(row, intended_use)
             row["context"] = json.dumps(row.get("context", {}), sort_keys=True)
-            writer.writerow(row)
+            writer.writerow(
+                {
+                    "Severity": customer_fields["severity"],
+                    "Finding": customer_fields["finding"],
+                    "Affected record/column": customer_fields["affected_record_or_column"],
+                    "Why it matters": customer_fields["why_it_matters"],
+                    "Suggested action": customer_fields["suggested_action"],
+                    **row,
+                }
+            )
 
 
 def _render_report(qa_result: QAResult, template_dir: str | Path | None) -> str:
@@ -130,6 +146,8 @@ def _write_customer_report_pdf(path: Path, context: dict[str, Any]) -> None:
         "",
         context['workflow_guidance']['decision'],
         context['workflow_guidance']['rationale'],
+        f"Decision question: {context['use_requirements']['decision_question']}",
+        f"Release condition: {context['use_requirements']['handoff_condition']}",
         "",
         "Readiness Result",
         f"Readiness band: {context['readiness_band']}",

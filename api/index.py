@@ -21,6 +21,7 @@ from geoqa.runner import run_geoqa
 from geoqa.workflows import export_handoff_bundle, generate_fix_plan_artifacts
 
 app = Flask(__name__)
+RUNTIME_CONTRACT_VERSION = "v1.2"
 
 _STATE_LOCK = threading.Lock()
 _STATE_ROOT_BY_RUN_ID: dict[str, Path] = {}
@@ -70,6 +71,68 @@ def _runtime_config():
 
 def _production_store():
     return build_production_store(_runtime_config())
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _operations_health(store: BaseProductionStore | None = None) -> dict[str, Any]:
+    runtime = _runtime_config()
+    store = store or _production_store()
+    runs = store.list_runs(limit=100)
+    queue = {
+        "qa_queued": sum(run.get("status") == "queued" for run in runs),
+        "qa_running": sum(run.get("status") == "running" for run in runs),
+        "qa_failed": sum(run.get("status") == "failed" for run in runs),
+        "packages_queued": sum(run.get("package_status") == "queued" for run in runs),
+        "packages_building": sum(run.get("package_status") == "building" for run in runs),
+        "packages_failed": sum(run.get("package_status") == "failed" for run in runs),
+    }
+    activity: list[tuple[datetime, str | None]] = []
+    for run in runs:
+        worker_id = run.get("package_claimed_by") or run.get("claimed_by")
+        for field in ("package_last_heartbeat_at", "last_heartbeat_at", "package_claimed_at", "claimed_at"):
+            timestamp = _parse_timestamp(run.get(field))
+            if timestamp:
+                activity.append((timestamp, str(worker_id) if worker_id else None))
+    latest_at, latest_worker = max(
+        activity,
+        default=(None, None),
+        key=lambda item: item[0] or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    age_seconds = max(0, int((datetime.now(timezone.utc) - latest_at).total_seconds())) if latest_at else None
+    active_work = queue["qa_queued"] + queue["qa_running"] + queue["packages_queued"] + queue["packages_building"]
+    freshness_limit = max(30, runtime.worker_stale_after_seconds * 2)
+    if latest_at and age_seconds is not None and age_seconds <= freshness_limit:
+        worker_status = "online"
+    elif active_work:
+        worker_status = "attention_required"
+    else:
+        worker_status = "idle_unconfirmed"
+    contract_versions = sorted(
+        {str(run["runtime_contract_version"]) for run in runs if run.get("runtime_contract_version")}
+    )
+    return {
+        "status": "healthy" if worker_status == "online" or not active_work else "degraded",
+        "runtime_contract_version": RUNTIME_CONTRACT_VERSION,
+        "storage_provider": "supabase" if runtime.supabase_url and runtime.supabase_service_role_key else "local",
+        "worker": {
+            "status": worker_status,
+            "worker_id": latest_worker,
+            "last_seen_at": latest_at.isoformat() if latest_at else None,
+            "last_seen_age_seconds": age_seconds,
+            "stale_after_seconds": runtime.worker_stale_after_seconds,
+        },
+        "queue": queue,
+        "observed_worker_contract_versions": contract_versions,
+        "compatible": not contract_versions or RUNTIME_CONTRACT_VERSION in contract_versions,
+    }
 
 
 def _output_root() -> Path:
@@ -486,6 +549,7 @@ def _landing_page_html() -> str:
         </div>
       </div>
       <div class="top-actions">
+        <span class="pill" id="workerHealth">Worker status pending</span>
         <span class="pill" id="topRunStatus">No active run</span>
         <button id="newRunButton" aria-controls="newRunPanel" aria-expanded="false">New audit</button>
         <button id="refreshRun" class="secondary" disabled>Refresh</button>
@@ -520,6 +584,11 @@ def _landing_page_html() -> str:
         <section class="panel"><div class="panel-body">
           <h2>Recent runs</h2>
           <div id="recentRuns" class="recent"><p class="subtitle">Your latest QA runs will appear here.</p></div>
+        </div></section>
+        <section class="panel"><div class="panel-body">
+          <h2>Operations</h2>
+          <p id="workerDetail" class="subtitle">Worker and queue diagnostics appear after authentication.</p>
+          <div class="review-actions"><button id="retryRun" class="secondary" hidden>Retry QA</button><button id="retryPackage" class="secondary" hidden>Retry package</button></div>
         </div></section>
       </aside>
 
@@ -760,7 +829,7 @@ def _landing_page_html() -> str:
       $("decisionText").textContent = decisionFor(payload);
       $("issueHigh").textContent = counts.high ?? "-"; $("issueMedium").textContent = counts.medium ?? "-"; $("issueLow").textContent = counts.low ?? "-";
       $("gateLabel").textContent = payload.status === "completed" ? `${payload.readiness_score ?? "--"}/100 readiness` : "Readiness pending";
-      renderEvidence(payload); renderTriage(payload); renderReview(payload); renderPackageRows();
+      renderEvidence(payload); renderTriage(payload); renderReview(payload); renderRetryControls(payload); renderPackageRows();
     }
     async function loadArtifacts(runId) {
       const response = await fetch(`/api/v1/runs/${runId}/artifacts`, { headers: headers() });
@@ -772,6 +841,37 @@ def _landing_page_html() -> str:
       const payload = await response.json(); const rows = payload.runs || [];
       if (!rows.length) { $("recentRuns").innerHTML = "<p class='subtitle'>No production runs yet.</p>"; return; }
       $("recentRuns").innerHTML = rows.map((run) => `<div class="package-row"><span><strong>${run.filename || run.run_id}</strong><br><span class="status-note">${titleCase(run.status)} · ${titleCase(run.readiness_band || "pending")}</span></span><button class="secondary" onclick="openRun('${run.run_id}')">View</button></div>`).join("");
+    }
+    async function loadOperationsHealth() {
+      try {
+        const response = await fetch("/api/v1/operations/health", { headers: headers() });
+        const payload = await readJson(response);
+        const worker = payload.worker || {};
+        const queue = payload.queue || {};
+        $("workerHealth").textContent = `Worker: ${titleCase(worker.status || "unknown")}`;
+        $("workerHealth").classList.toggle("hot", worker.status === "attention_required");
+        $("workerDetail").textContent = `${queue.qa_queued || 0} QA queued · ${queue.packages_queued || 0} packages queued · contract ${payload.runtime_contract_version || "unknown"}`;
+      } catch (error) {
+        $("workerHealth").textContent = "Worker: unavailable";
+        $("workerHealth").classList.add("hot");
+        $("workerDetail").textContent = error.message || "Operations diagnostics unavailable.";
+      }
+    }
+    function renderRetryControls(payload) {
+      $("retryRun").hidden = payload.status !== "failed";
+      $("retryPackage").hidden = !(payload.status === "completed" && payload.package_status === "failed" && payload.review_status?.status === "approved");
+    }
+    async function retryWork(target) {
+      if (!currentRunId) return;
+      try {
+        const response = await fetch(`/api/v1/runs/${currentRunId}/retry`, { method: "POST", headers: headers(true), body: JSON.stringify({ target }) });
+        await readJson(response);
+        setMessage(target === "package" ? "Package retry queued." : "QA retry queued.");
+        clearInterval(pollTimer);
+        pollTimer = setInterval(refreshRun, 3000);
+        await refreshRun();
+        await loadOperationsHealth();
+      } catch (error) { setMessage(error.message, true); }
     }
     async function openRun(runId) { currentRunId = runId; $("refreshRun").disabled = false; await refreshRun(); }
     async function uploadDatasetFile(file) {
@@ -835,6 +935,9 @@ def _landing_page_html() -> str:
     $("refreshRun").addEventListener("click", refreshRun);
     $("approvePackage").addEventListener("click", () => reviewRun("approve"));
     $("rejectPackage").addEventListener("click", () => reviewRun("reject"));
+    $("retryRun").addEventListener("click", () => retryWork("run"));
+    $("retryPackage").addEventListener("click", () => retryWork("package"));
+    $("apiKey").addEventListener("change", () => { loadRecentRuns(); loadOperationsHealth(); });
     $("submitRun").addEventListener("click", async () => {
       try {
         const file = $("dataset").files[0]; if (!file) throw new Error("Choose a dataset file first.");
@@ -845,7 +948,7 @@ def _landing_page_html() -> str:
         const run = await readJson(runResponse); currentRunId = run.run_id; currentArtifacts = {}; renderPackageRows(); $("refreshRun").disabled = false; setNewRunOpen(false); renderRun(run); setMessage("Run queued. GeoQA will refresh this page as evidence becomes available."); await loadRecentRuns(); clearInterval(pollTimer); pollTimer = setInterval(refreshRun, 3000);
       } catch (error) { setMessage(error.message, true); } finally { $("submitRun").disabled = false; }
     });
-    initBasemap(); renderPackageRows(); renderRun({}); loadRecentRuns();
+    initBasemap(); renderPackageRows(); renderRun({}); loadRecentRuns(); loadOperationsHealth();
   </script>
 </body>
 </html>"""
@@ -923,7 +1026,7 @@ def root() -> Any:
 
 @app.get("/health")
 def health() -> Any:
-    return _response({"status": "healthy"})
+    return _response({"status": "healthy", "runtime_contract_version": RUNTIME_CONTRACT_VERSION})
 
 
 @app.get("/config")
@@ -947,8 +1050,17 @@ def config() -> Any:
             "worker_id": runtime.worker_id,
             "worker_stale_after_seconds": runtime.worker_stale_after_seconds,
             "worker_max_attempts": runtime.worker_max_attempts,
+            "runtime_contract_version": RUNTIME_CONTRACT_VERSION,
         }
     )
+
+
+@app.get("/api/v1/operations/health")
+def operations_health() -> Any:
+    try:
+        return _response(_operations_health())
+    except ProductionStoreError as exc:
+        raise _store_error(exc, status_code=503) from exc
 
 
 @app.post("/api/v1/uploads/init")
@@ -1077,6 +1189,73 @@ def get_run(run_id: str) -> Any:
         return _response(_enrich_run_payload_with_artifacts(payload, store=store))
     except ProductionStoreError as exc:
         raise _store_error(exc, status_code=404) from exc
+
+
+@app.post("/api/v1/runs/<run_id>/retry")
+def retry_run(run_id: str) -> Any:
+    if _read_state_or_none(run_id) is not None:
+        raise APIError(
+            "retry_not_supported",
+            "Manual retry is available for persisted production runs only.",
+            status_code=409,
+        )
+    payload = request.get_json(silent=True) or {}
+    target = str(payload.get("target") or "run").strip().lower()
+    if target not in {"run", "package"}:
+        raise APIError("validation_error", "target must be run or package.", details={"field": "target"})
+    try:
+        store = _production_store()
+        run = store.get_run(run_id)
+        if target == "run":
+            if run.get("status") != "failed":
+                raise APIError("retry_not_allowed", "Only failed QA runs can be retried.", status_code=409)
+            updated = store.update_run(
+                run_id,
+                status="queued",
+                attempt_count=0,
+                claimed_at=None,
+                claimed_by=None,
+                last_heartbeat_at=None,
+                error=None,
+                error_type=None,
+                failed_at=None,
+                completed_at=None,
+            )
+            store.append_event(run_id, "manual_retry_queued", {"target": "run"})
+        else:
+            review_status = run.get("review_status") or {}
+            if run.get("status") != "completed" or review_status.get("status") != "approved":
+                raise APIError(
+                    "retry_not_allowed",
+                    "Package retry requires a completed, approved run.",
+                    status_code=409,
+                )
+            if run.get("package_status") != "failed":
+                raise APIError("retry_not_allowed", "Only failed packages can be retried.", status_code=409)
+            updated = store.update_run(
+                run_id,
+                package_status="queued",
+                package_attempt_count=0,
+                package_requested_at=_utc_now(),
+                package_completed_at=None,
+                package_claimed_at=None,
+                package_claimed_by=None,
+                package_last_heartbeat_at=None,
+                package_error=None,
+                package_error_type=None,
+            )
+            store.append_event(run_id, "manual_retry_queued", {"target": "package"})
+    except ProductionStoreError as exc:
+        raise _store_error(exc, status_code=404) from exc
+    return _response(
+        {
+            "run_id": run_id,
+            "target": target,
+            "status": updated.get("status"),
+            "package_status": updated.get("package_status"),
+        },
+        status_code=202,
+    )
 
 
 _REVIEW_SOURCE_ARTIFACTS = [

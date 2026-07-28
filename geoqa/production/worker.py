@@ -17,6 +17,8 @@ from geoqa.production.store import BaseProductionStore, ProductionStoreError, bu
 from geoqa.runner import run_geoqa
 from geoqa.workflows import export_handoff_bundle, generate_fix_plan_artifacts
 
+RUNTIME_CONTRACT_VERSION = "v1.2"
+
 
 PACKAGE_SOURCE_ARTIFACTS = [
     "qa_report",
@@ -115,6 +117,7 @@ def process_next_run(
                     run_record=result.run_record.to_dict(),
                     artifacts=artifacts,
                     review_status=review_status,
+                    runtime_contract_version=RUNTIME_CONTRACT_VERSION,
                     error=None,
                     error_type=None,
                 )
@@ -187,6 +190,7 @@ def process_next_package(
             package_last_heartbeat_at=None,
             package_error=None,
             package_error_type=None,
+            runtime_contract_version=RUNTIME_CONTRACT_VERSION,
             artifacts=merged_artifacts,
         )
         store.append_event(run_id, "package_ready", {"artifacts": ["bundle_manifest", "handoff_bundle"]})

@@ -69,6 +69,7 @@ V1 deployment uses:
 V1 docs:
 
 - [V1 release notes](docs/v1_release_notes.md)
+- [V1.2 reliability and customer delivery](docs/v1.2_reliability_and_delivery.md)
 - [V1 deployment guide](docs/v1_deployment.md)
 - [V1 production MVP guide](docs/v1_production_mvp.md)
 - [V1 Centreline case study](docs/v1_case_study_centreline.md)
@@ -78,6 +79,26 @@ Canonical V1 demo command:
 
 ```bash
 python app.py demo/input/centreline_intersections_sample.zip --output-dir demo/output --agent-run --agent-task report --agent-max-steps 4 --llm-provider static --static-report-file demo/output/static_v4_report.md --approve-agent-report --reviewer-name "Demo Reviewer"
+```
+
+### V1.2 Reliability Gate
+
+V1.2 adds remote-artifact approval compatibility, worker/queue diagnostics, safe manual retries, customer-friendly issue columns, and intended-use release conditions.
+
+Verify a deployed approved package before promotion:
+
+```bash
+GEOQA_API_KEY=... python -m geoqa.ops.release_gate \
+  --base-url https://geoqa-agent.vercel.app \
+  --run-id run-xxxxxxxxxxxx \
+  --require-approved-package
+```
+
+Run the required three-dataset customer pilot with private local paths:
+
+```bash
+python -m geoqa.ops.pilot /secure/pilot/manifest.json \
+  --output-root outputs/v1_2_pilot
 ```
 
 
